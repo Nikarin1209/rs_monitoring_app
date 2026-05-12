@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../models/app_settings.dart';
-import '../services/storage_service.dart';
+import '../services/supabase_service.dart';
 
 class SettingsProvider extends ChangeNotifier {
   AppSettings _settings = const AppSettings();
@@ -18,7 +18,6 @@ class SettingsProvider extends ChangeNotifier {
   bool get tappingReminderEnabled => _settings.tappingReminderEnabled;
   bool get reactionReminderEnabled => _settings.reactionReminderEnabled;
 
-  /// Count of active reminders (shown in Settings tab as "3 ›").
   int get activeReminderCount {
     int count = 0;
     if (_settings.diaryReminderEnabled) count++;
@@ -29,23 +28,29 @@ class SettingsProvider extends ChangeNotifier {
 
   // ─── Load ────────────────────────────────────────────────────────────────
 
-  void load() {
+  Future<void> load() async {
+    final userId = SupabaseService.currentUserId;
+    if (userId == null) return;
     _loading = true;
+    notifyListeners();
     try {
-      _settings = getSettings(); // returns const AppSettings() if not yet saved
+      _settings = await SupabaseService.getSettings(userId);
       _error = null;
     } catch (e) {
       _error = 'Не удалось загрузить настройки';
     } finally {
       _loading = false;
     }
+    notifyListeners();
   }
 
   // ─── Write ───────────────────────────────────────────────────────────────
 
   Future<void> update(AppSettings settings) async {
+    final userId = SupabaseService.currentUserId;
+    if (userId == null) return;
     try {
-      await saveSettings(settings);
+      await SupabaseService.upsertSettings(userId, settings);
       _settings = settings;
       _error = null;
     } catch (e) {
@@ -78,9 +83,21 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setFaceIdEnabled(bool value, ProfileSettingCallback onProfile) =>
       onProfile(value);
 
-  Future<void> resetToDefaults() => update(const AppSettings());
+  Future<void> resetToDefaults() async {
+    final userId = SupabaseService.currentUserId;
+    if (userId == null) {
+      _settings = const AppSettings();
+      notifyListeners();
+      return;
+    }
+    await update(const AppSettings());
+  }
+
+  void clear() {
+    _settings = const AppSettings();
+    _error = null;
+    notifyListeners();
+  }
 }
 
-/// Callback type used by SettingsProvider to delegate privacy settings
-/// (face ID / PIN) to ProfileProvider, since those live on UserProfile.
 typedef ProfileSettingCallback = Future<void> Function(bool value);

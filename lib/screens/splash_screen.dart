@@ -1,14 +1,76 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../app_theme.dart';
 import '../widgets/nl_widgets.dart';
+import '../state/profile_provider.dart';
+import '../state/diary_provider.dart';
+import '../state/test_results_provider.dart';
+import '../state/settings_provider.dart';
+import 'doctor_home_screen.dart';
+import 'home_screen.dart';
 import 'sign_in_screen.dart';
 import 'sign_up_screen.dart';
 
-class SplashScreen extends StatelessWidget {
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
   @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  bool _checking = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuth();
+  }
+
+  Future<void> _checkAuth() async {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null) {
+      final profileProvider = context.read<ProfileProvider>();
+      await profileProvider.load();
+      if (!mounted) return;
+      final profile = profileProvider.profile;
+      if (profile?.isPatient == true) {
+        final diaryProvider = context.read<DiaryProvider>();
+        final testResultsProvider = context.read<TestResultsProvider>();
+        final settingsProvider = context.read<SettingsProvider>();
+        await Future.wait([
+          diaryProvider.load(),
+          testResultsProvider.load(),
+          settingsProvider.load(),
+        ]);
+      } else {
+        context.read<DiaryProvider>().clear();
+        context.read<TestResultsProvider>().clear();
+        context.read<SettingsProvider>().clear();
+      }
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => profile?.isDoctor == true
+              ? const DoctorHomeScreen()
+              : const HomeScreen(),
+        ),
+      );
+      return;
+    }
+    if (mounted) setState(() => _checking = false);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_checking) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFFAF7F2),
+        body: Center(child: CircularProgressIndicator(color: NLColors.accent)),
+      );
+    }
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -36,18 +98,34 @@ class SplashScreen extends StatelessWidget {
                           colors: [Color(0xFF7B6BE8), Color(0xFF4A3D7A)],
                         ),
                         boxShadow: const [
-                          BoxShadow(color: Color(0x4D7B6BE8), blurRadius: 40, offset: Offset(0, 20)),
+                          BoxShadow(
+                            color: Color(0x4D7B6BE8),
+                            blurRadius: 40,
+                            offset: Offset(0, 20),
+                          ),
                         ],
                       ),
-                      child: const Icon(Icons.psychology_outlined, color: Colors.white, size: 44),
+                      child: const Icon(
+                        Icons.psychology_outlined,
+                        color: Colors.white,
+                        size: 44,
+                      ),
                     ),
                     const SizedBox(height: 18),
-                    const Text('NeuroLife',
-                        style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700,
-                            letterSpacing: -1.0, color: NLColors.ink)),
+                    const Text(
+                      'NeuroLife',
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -1.0,
+                        color: NLColors.ink,
+                      ),
+                    ),
                     const SizedBox(height: 6),
-                    const Text('Дневник состояния · РС',
-                        style: TextStyle(fontSize: 14, color: NLColors.muted)),
+                    const Text(
+                      'Дневник состояния · РС',
+                      style: TextStyle(fontSize: 14, color: NLColors.muted),
+                    ),
                   ],
                 ),
               ),
@@ -59,13 +137,15 @@ class SplashScreen extends StatelessWidget {
                       label: 'Войти',
                       full: true,
                       onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const SignInScreen())),
+                        MaterialPageRoute(builder: (_) => const SignInScreen()),
+                      ),
                     ),
                     const SizedBox(height: 10),
                     NLGhostButton(
                       label: 'Создать аккаунт',
                       onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const SignUpScreen())),
+                        MaterialPageRoute(builder: (_) => const SignUpScreen()),
+                      ),
                     ),
                   ],
                 ),

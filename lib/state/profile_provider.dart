@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../models/user_profile.dart';
-import '../services/storage_service.dart';
+import '../services/supabase_service.dart';
 
 class ProfileProvider extends ChangeNotifier {
   UserProfile? _profile;
@@ -11,18 +11,17 @@ class ProfileProvider extends ChangeNotifier {
   bool get loading => _loading;
   String? get error => _error;
 
-  /// True once the user has completed onboarding and saved a profile.
   bool get hasProfile => _profile != null;
   bool get isOnboarded => _profile != null;
+  bool get isDoctor => _profile?.isDoctor ?? false;
+  bool get isPatient => _profile?.isPatient ?? false;
 
-  /// First letter of the user's name, used for avatars.
-  String get avatarLetter =>
-      (_profile?.name.isNotEmpty == true) ? _profile!.name[0].toUpperCase() : '?';
+  String get avatarLetter => (_profile?.name.isNotEmpty == true)
+      ? _profile!.name[0].toUpperCase()
+      : '?';
 
-  /// Display name, falls back to empty string while loading.
   String get displayName => _profile?.name ?? '';
 
-  /// How many days the patient has been under observation.
   int get observationDays {
     if (_profile == null) return 0;
     return DateTime.now().difference(_profile!.observationStartDate).inDays + 1;
@@ -30,43 +29,70 @@ class ProfileProvider extends ChangeNotifier {
 
   // ─── Load ────────────────────────────────────────────────────────────────
 
-  void load() {
+  Future<void> load() async {
+    final userId = SupabaseService.currentUserId;
+    if (userId == null) return;
     _loading = true;
-    // No notifyListeners here — called during provider creation, before any
-    // listeners are attached. Data is read synchronously from the open Hive box.
+    notifyListeners();
     try {
-      _profile = getUserProfile();
+      _profile = await SupabaseService.getProfile(userId);
       _error = null;
     } catch (e) {
       _error = 'Не удалось загрузить профиль';
     } finally {
       _loading = false;
     }
+    notifyListeners();
   }
 
   // ─── Write ───────────────────────────────────────────────────────────────
 
-  Future<void> saveProfile(UserProfile profile) async {
+  Future<void> saveProfile(
+    UserProfile profile, {
+    bool throwOnError = false,
+  }) async {
     try {
-      await saveUserProfile(profile);
+      await SupabaseService.upsertProfile(profile);
       _profile = profile;
       _error = null;
     } catch (e) {
       _error = 'Не удалось сохранить профиль';
+      if (throwOnError) rethrow;
     }
     notifyListeners();
   }
 
   Future<void> updateProfile(UserProfile profile) => saveProfile(profile);
 
+  void setLocalProfile(UserProfile profile) {
+    _profile = profile;
+    _error = null;
+    notifyListeners();
+  }
+
   Future<void> deleteProfile() async {
+    final userId = SupabaseService.currentUserId ?? _profile?.id;
+    if (userId == null) return;
     try {
-      await deleteUserProfile();
+      await SupabaseService.deleteProfile(userId);
       _profile = null;
       _error = null;
     } catch (e) {
       _error = 'Не удалось удалить профиль';
     }
+    notifyListeners();
+  }
+
+  // ─── Auth ─────────────────────────────────────────────────────────────────
+
+  Future<void> signOut() async {
+    await SupabaseService.signOut();
+    clear();
+  }
+
+  void clear() {
+    _profile = null;
+    _error = null;
     notifyListeners();
   }
 }

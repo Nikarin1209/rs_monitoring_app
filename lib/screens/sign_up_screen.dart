@@ -1,14 +1,16 @@
 import 'package:flutter/gestures.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:uuid/uuid.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../app_theme.dart';
 import '../models/user_profile.dart';
+import '../services/supabase_service.dart';
 import '../state/profile_provider.dart';
 import '../widgets/nl_widgets.dart';
+import 'doctor_home_screen.dart';
 import 'onboarding_screen.dart';
-
-const _uuid = Uuid();
+import 'sign_in_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -22,15 +24,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _doctorSpecialtyCtrl = TextEditingController();
+  final _clinicCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
   late final TapGestureRecognizer _policyLinkRecognizer;
 
   DateTime _observationDate = DateTime.now();
+  String _selectedRole = UserRole.patient;
   bool _policyAccepted = false;
   bool _policyError = false;
+  bool _loading = false;
+  String? _authError;
+  String? _statusMessage;
 
   static const _months = [
-    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+    'января',
+    'февраля',
+    'марта',
+    'апреля',
+    'мая',
+    'июня',
+    'июля',
+    'августа',
+    'сентября',
+    'октября',
+    'ноября',
+    'декабря',
   ];
 
   @override
@@ -44,6 +63,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
+    _doctorSpecialtyCtrl.dispose();
+    _clinicCtrl.dispose();
+    _phoneCtrl.dispose();
     _policyLinkRecognizer.dispose();
     super.dispose();
   }
@@ -69,7 +91,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Политика хранения данных'),
         content: const Text(
-          'Данные приложения NeuroLife хранятся локально на устройстве пользователя '
+          'Данные приложения NeuroLife хранятся в защищённом облачном хранилище '
           'и используются для ведения дневника самочувствия, результатов мини-тестов, '
           'аналитики и формирования отчётов. Приложение не заменяет консультацию врача '
           'и не выполняет медицинскую диагностику.',
@@ -86,7 +108,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   String? _validateName(String? v) {
     if (v == null || v.trim().isEmpty) return 'Введите имя';
-    if (!RegExp(r'^[А-ЯA-Z][а-яА-Яa-zA-ZёЁ]+$').hasMatch(v.trim())) {
+    if (!RegExp(r'^[А-ЯA-ZЁ][а-яА-Яa-zA-ZёЁ\s\-]+$').hasMatch(v.trim())) {
       return 'Имя должно начинаться с большой буквы и содержать только буквы';
     }
     return null;
@@ -103,28 +125,149 @@ class _SignUpScreenState extends State<SignUpScreen> {
   String? _validatePassword(String? v) {
     if (v == null || v.isEmpty) return 'Введите пароль';
     if (v.length < 8) return 'Пароль должен содержать минимум 8 символов';
-    if (!RegExp(r'[a-zа-яё]').hasMatch(v)) return 'Добавьте хотя бы одну строчную букву';
-    if (!RegExp(r'[A-ZА-ЯЁ]').hasMatch(v)) return 'Добавьте хотя бы одну заглавную букву';
+    if (!RegExp(r'[a-zа-яё]').hasMatch(v)) {
+      return 'Добавьте хотя бы одну строчную букву';
+    }
+    if (!RegExp(r'[A-ZА-ЯЁ]').hasMatch(v)) {
+      return 'Добавьте хотя бы одну заглавную букву';
+    }
     if (!RegExp(r'\d').hasMatch(v)) return 'Добавьте хотя бы одну цифру';
     return null;
   }
 
+  String _mapAuthError(String message) {
+    final msg = message.toLowerCase();
+    if (msg.contains('already registered') ||
+        msg.contains('already been registered') ||
+        msg.contains('user already exists')) {
+      return 'Пользователь с таким email уже зарегистрирован';
+    }
+    if ((msg.contains('signup') && msg.contains('disabled')) ||
+        msg.contains('signups not allowed')) {
+      return 'Регистрация отключена в настройках Supabase Auth';
+    }
+    if (msg.contains('email provider') && msg.contains('disabled')) {
+      return 'Email-регистрация отключена в Supabase Auth';
+    }
+    if (msg.contains('email rate limit') ||
+        msg.contains('rate limit') ||
+        msg.contains('too many requests')) {
+      return 'Слишком много попыток регистрации. Попробуйте позже.';
+    }
+    if (msg.contains('invalid email')) return 'Некорректный email адрес';
+    if (msg.contains('password')) return 'Пароль не соответствует требованиям';
+    if (kDebugMode) return 'Ошибка регистрации: $message';
+    return 'Ошибка регистрации. Попробуйте позже.';
+  }
+
+  String _mapDatabaseError(PostgrestException error) {
+    final msg = error.message.toLowerCase();
+    if (msg.contains('row-level security') || msg.contains('rls')) {
+      return 'Профиль не сохранён: RLS-политика Supabase отклонила запись';
+    }
+    if (msg.contains('foreign key')) {
+      return 'Профиль не сохранён: пользователь Auth ещё не доступен в базе';
+    }
+    if (kDebugMode) return 'Ошибка базы данных: ${error.message}';
+    return 'Не удалось сохранить профиль. Попробуйте позже.';
+  }
+
+  void _logSignUpError(Object error, StackTrace stackTrace) {
+    if (!kDebugMode) return;
+    debugPrint('Sign-up failed: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
+
   Future<void> _submit() async {
     final formValid = _formKey.currentState?.validate() ?? false;
-    setState(() => _policyError = !_policyAccepted);
+    setState(() {
+      _policyError = !_policyAccepted;
+      _authError = null;
+      _statusMessage = null;
+    });
     if (!formValid || !_policyAccepted) return;
 
-    final profile = UserProfile(
-      id: _uuid.v4(),
-      name: _nameCtrl.text.trim(),
-      email: _emailCtrl.text.trim(),
-      observationStartDate: _observationDate,
-    );
-    await context.read<ProfileProvider>().saveProfile(profile);
-    if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const OnboardingScreen()),
-    );
+    setState(() => _loading = true);
+    try {
+      final response = await SupabaseService.signUp(
+        email: _emailCtrl.text.trim(),
+        password: _passwordCtrl.text,
+        name: _nameCtrl.text.trim(),
+        role: _selectedRole,
+        observationStartDate: _selectedRole == UserRole.patient
+            ? _observationDate
+            : null,
+        phone: _phoneCtrl.text.trim(),
+        doctorSpecialty: _doctorSpecialtyCtrl.text.trim(),
+        clinicName: _clinicCtrl.text.trim(),
+      );
+
+      final user = response.user;
+      if (user == null) {
+        setState(
+          () => _authError =
+              'Не удалось создать аккаунт. Проверьте email и попробуйте снова.',
+        );
+        return;
+      }
+
+      final profile = UserProfile(
+        id: user.id,
+        name: _nameCtrl.text.trim(),
+        email: _emailCtrl.text.trim(),
+        role: _selectedRole,
+        observationStartDate: _selectedRole == UserRole.patient
+            ? _observationDate
+            : DateTime.now(),
+        phone: _phoneCtrl.text.trim(),
+        doctorSpecialty: _doctorSpecialtyCtrl.text.trim(),
+        clinicName: _clinicCtrl.text.trim(),
+      );
+
+      if (!mounted) return;
+      context.read<ProfileProvider>().setLocalProfile(profile);
+      if (!mounted) return;
+
+      if (response.session == null) {
+        setState(() {
+          _statusMessage =
+              'Аккаунт создан. Подтвердите email, затем войдите в приложение.';
+        });
+        await Future<void>.delayed(const Duration(seconds: 2));
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const SignInScreen()),
+        );
+        return;
+      }
+
+      if (!mounted) return;
+      final profileProvider = context.read<ProfileProvider>();
+      await profileProvider.saveProfile(profile, throwOnError: true);
+
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => profile.isDoctor
+              ? const DoctorHomeScreen()
+              : const OnboardingScreen(),
+        ),
+      );
+    } on AuthException catch (e, stackTrace) {
+      _logSignUpError(e, stackTrace);
+      setState(() => _authError = _mapAuthError(e.message));
+    } on PostgrestException catch (e, stackTrace) {
+      _logSignUpError(e, stackTrace);
+      setState(() => _authError = _mapDatabaseError(e));
+    } catch (e, stackTrace) {
+      _logSignUpError(e, stackTrace);
+      final message = kDebugMode
+          ? 'Ошибка сети или приложения: $e'
+          : 'Ошибка сети. Проверьте соединение.';
+      setState(() => _authError = message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
@@ -159,10 +302,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       ),
                       const SizedBox(height: 6),
                       const Text(
-                        'Данные хранятся локально и зашифрованы',
+                        'Данные хранятся в защищённом облаке',
                         style: TextStyle(fontSize: 14, color: NLColors.muted),
                       ),
                       const SizedBox(height: 22),
+                      NLSegmented(
+                        items: const ['Пациент', 'Врач'],
+                        active: _selectedRole == UserRole.patient
+                            ? 'Пациент'
+                            : 'Врач',
+                        onChange: (value) => setState(
+                          () => _selectedRole = value == 'Врач'
+                              ? UserRole.doctor
+                              : UserRole.patient,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
                       const NLLabel('Имя'),
                       _SignUpField(
                         controller: _nameCtrl,
@@ -187,36 +342,62 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         obscure: true,
                       ),
                       const SizedBox(height: 14),
-                      const NLLabel('Дата начала наблюдений'),
-                      GestureDetector(
-                        onTap: _pickDate,
-                        child: Container(
-                          height: 52,
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: NLColors.surface2,
-                            borderRadius: BorderRadius.all(NLRadius.md),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  _formatDate(_observationDate),
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    color: NLColors.ink,
+                      if (_selectedRole == UserRole.patient) ...[
+                        const NLLabel('Дата начала наблюдений'),
+                        GestureDetector(
+                          onTap: _pickDate,
+                          child: Container(
+                            height: 52,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: NLColors.surface2,
+                              borderRadius: BorderRadius.all(NLRadius.md),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _formatDate(_observationDate),
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: NLColors.ink,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const Icon(
-                                Icons.calendar_today_outlined,
-                                size: 18,
-                                color: NLColors.muted,
-                              ),
-                            ],
+                                const Icon(
+                                  Icons.calendar_today_outlined,
+                                  size: 18,
+                                  color: NLColors.muted,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
+                      ] else ...[
+                        const NLLabel('Специализация'),
+                        _SignUpField(
+                          controller: _doctorSpecialtyCtrl,
+                          hintText: 'Невролог, специалист по РС',
+                          validator: (_) => null,
+                          textCapitalization: TextCapitalization.sentences,
+                        ),
+                        const SizedBox(height: 14),
+                        const NLLabel('Клиника'),
+                        _SignUpField(
+                          controller: _clinicCtrl,
+                          hintText: 'Название клиники',
+                          validator: (_) => null,
+                          textCapitalization: TextCapitalization.sentences,
+                        ),
+                        const SizedBox(height: 14),
+                        const NLLabel('Телефон для связи'),
+                        _SignUpField(
+                          controller: _phoneCtrl,
+                          hintText: '+7 ...',
+                          validator: (_) => null,
+                          keyboardType: TextInputType.phone,
+                        ),
+                      ],
                       const SizedBox(height: 18),
                       GestureDetector(
                         onTap: () => setState(() {
@@ -240,8 +421,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   color: _policyError
                                       ? NLColors.bad
                                       : (_policyAccepted
-                                          ? NLColors.ink
-                                          : NLColors.muted),
+                                            ? NLColors.ink
+                                            : NLColors.muted),
                                   width: 1.5,
                                 ),
                               ),
@@ -289,12 +470,64 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                         ),
                       ],
+                      if (_authError != null) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: NLColors.bad.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.all(NLRadius.md),
+                          ),
+                          child: Text(
+                            _authError!,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: NLColors.bad,
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (_statusMessage != null) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: NLColors.good.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.all(NLRadius.md),
+                          ),
+                          child: Text(
+                            _statusMessage!,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: NLColors.good,
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 18),
-                      NLButton(
-                        label: 'Создать аккаунт',
-                        full: true,
-                        onTap: _submit,
-                      ),
+                      if (_loading)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: CircularProgressIndicator(
+                              color: NLColors.accent,
+                            ),
+                          ),
+                        )
+                      else
+                        NLButton(
+                          label: 'Создать аккаунт',
+                          full: true,
+                          onTap: _submit,
+                        ),
                       const SizedBox(height: 32),
                     ],
                   ),
@@ -308,7 +541,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 }
 
-// Styled TextFormField matching NLInput visuals.
 class _SignUpField extends StatelessWidget {
   final TextEditingController controller;
   final String hintText;
@@ -340,8 +572,10 @@ class _SignUpField extends StatelessWidget {
         hintStyle: const TextStyle(color: NLColors.muted),
         filled: true,
         fillColor: NLColors.surface2,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.all(NLRadius.md),
           borderSide: BorderSide.none,

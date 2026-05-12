@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../models/diary_entry.dart';
-import '../services/storage_service.dart';
+import '../services/supabase_service.dart';
 
 class DiaryProvider extends ChangeNotifier {
   List<DiaryEntry> _entries = [];
@@ -17,7 +17,6 @@ class DiaryProvider extends ChangeNotifier {
 
   // ─── Computed helpers ────────────────────────────────────────────────────
 
-  /// Entry for today, or null if not yet filled in.
   DiaryEntry? get todayDiaryEntry {
     final today = DateTime.now();
     for (final e in _entries) {
@@ -32,66 +31,68 @@ class DiaryProvider extends ChangeNotifier {
 
   bool get hasTodayDiaryEntry => todayDiaryEntry != null;
 
-  /// Entries whose date falls within [from]..[to] inclusive.
   List<DiaryEntry> getByPeriod(DateTime from, DateTime to) {
     return _entries
         .where((e) => !e.dateTime.isBefore(from) && !e.dateTime.isAfter(to))
         .toList();
   }
 
-  /// Last [days] calendar days (today backwards).
   List<DiaryEntry> lastDays(int days) {
     final from = DateTime.now().subtract(Duration(days: days - 1));
     final start = DateTime(from.year, from.month, from.day);
     return getByPeriod(start, DateTime.now());
   }
 
-  /// Average of [metric] over the last [days] days. Returns null if no data.
   double? averageLastDays(double Function(DiaryEntry) metric, int days) {
     final subset = lastDays(days);
     if (subset.isEmpty) return null;
     return subset.fold<double>(0, (s, e) => s + metric(e)) / subset.length;
   }
 
-  /// Percent change of [metric] between prev window and current window.
-  /// Returns null if either window has no data.
   double? percentChange(double Function(DiaryEntry) metric, int windowDays) {
     final now = DateTime.now();
     final mid = now.subtract(Duration(days: windowDays));
     final start = now.subtract(Duration(days: windowDays * 2));
 
     final current = getByPeriod(mid, now);
-    final previous = getByPeriod(start, mid.subtract(const Duration(seconds: 1)));
+    final previous =
+        getByPeriod(start, mid.subtract(const Duration(seconds: 1)));
     if (current.isEmpty || previous.isEmpty) return null;
 
-    final avgCurrent = current.fold<double>(0, (s, e) => s + metric(e)) / current.length;
-    final avgPrevious = previous.fold<double>(0, (s, e) => s + metric(e)) / previous.length;
+    final avgCurrent =
+        current.fold<double>(0, (s, e) => s + metric(e)) / current.length;
+    final avgPrevious =
+        previous.fold<double>(0, (s, e) => s + metric(e)) / previous.length;
     if (avgPrevious == 0) return null;
     return ((avgCurrent - avgPrevious) / avgPrevious * 100);
   }
 
   // ─── Load ────────────────────────────────────────────────────────────────
 
-  void load() {
+  Future<void> load() async {
+    final userId = SupabaseService.currentUserId;
+    if (userId == null) return;
     _loading = true;
+    notifyListeners();
     try {
-      _entries = getAllDiaryEntries(); // sync Hive read, newest first
+      _entries = await SupabaseService.getDiaryEntries(userId);
       _error = null;
     } catch (e) {
       _error = 'Не удалось загрузить записи дневника';
     } finally {
       _loading = false;
     }
+    notifyListeners();
   }
 
   // ─── Write ───────────────────────────────────────────────────────────────
 
   Future<void> add(DiaryEntry entry) async {
+    final userId = SupabaseService.currentUserId;
+    if (userId == null) return;
     try {
-      await addDiaryEntry(entry);
-      // Keep newest-first order: insert at front if it is today or newer
-      final idx = _entries.indexWhere(
-          (e) => e.dateTime.isBefore(entry.dateTime));
+      await SupabaseService.insertDiaryEntry(userId, entry);
+      final idx = _entries.indexWhere((e) => e.dateTime.isBefore(entry.dateTime));
       if (idx == -1) {
         _entries.add(entry);
       } else {
@@ -105,8 +106,10 @@ class DiaryProvider extends ChangeNotifier {
   }
 
   Future<void> update(DiaryEntry entry) async {
+    final userId = SupabaseService.currentUserId;
+    if (userId == null) return;
     try {
-      await updateDiaryEntry(entry);
+      await SupabaseService.updateDiaryEntry(userId, entry);
       final idx = _entries.indexWhere((e) => e.id == entry.id);
       if (idx != -1) _entries[idx] = entry;
       _error = null;
@@ -117,8 +120,10 @@ class DiaryProvider extends ChangeNotifier {
   }
 
   Future<void> delete(String id) async {
+    final userId = SupabaseService.currentUserId;
+    if (userId == null) return;
     try {
-      await deleteDiaryEntry(id);
+      await SupabaseService.deleteDiaryEntry(userId, id);
       _entries.removeWhere((e) => e.id == id);
       _error = null;
     } catch (e) {
@@ -128,13 +133,21 @@ class DiaryProvider extends ChangeNotifier {
   }
 
   Future<void> deleteAll() async {
+    final userId = SupabaseService.currentUserId;
+    if (userId == null) return;
     try {
-      await deleteAllDiaryEntries();
+      await SupabaseService.deleteAllDiaryEntries(userId);
       _entries = [];
       _error = null;
     } catch (e) {
       _error = 'Не удалось очистить записи';
     }
+    notifyListeners();
+  }
+
+  void clear() {
+    _entries = [];
+    _error = null;
     notifyListeners();
   }
 }

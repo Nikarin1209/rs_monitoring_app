@@ -6,10 +6,12 @@ import '../state/diary_provider.dart';
 import '../state/profile_provider.dart';
 import '../state/test_results_provider.dart';
 import '../models/test_result.dart';
+import '../services/supabase_service.dart';
 import 'diary_entry_screen.dart';
 import 'history_list_screen.dart';
 import 'analytics_screen.dart';
 import 'settings_screen.dart';
+import 'patient_care_screen.dart';
 import 'tapping_test_screen.dart';
 import 'reaction_test_screen.dart';
 
@@ -27,10 +29,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _body() {
     switch (_tab) {
-      case 1: return const HistoryListBody();
-      case 2: return const AnalyticsBody();
-      case 3: return const SettingsBody();
-      default: return const _HomeTab();
+      case 1:
+        return const HistoryListBody();
+      case 2:
+        return const AnalyticsBody();
+      case 3:
+        return const SettingsBody();
+      default:
+        return const _HomeTab();
     }
   }
 
@@ -47,7 +53,10 @@ class _HomeScreenState extends State<HomeScreen> {
             onFab: () {
               final today = context.read<DiaryProvider>().todayDiaryEntry;
               Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => DiaryEntryScreen(entry: today)));
+                MaterialPageRoute(
+                  builder: (_) => DiaryEntryScreen(entry: today),
+                ),
+              );
             },
           ),
         ],
@@ -59,8 +68,29 @@ class _HomeScreenState extends State<HomeScreen> {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 String _formatHeaderDate(DateTime dt) {
-  const weekdays = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
-  const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+  const weekdays = [
+    'Воскресенье',
+    'Понедельник',
+    'Вторник',
+    'Среда',
+    'Четверг',
+    'Пятница',
+    'Суббота',
+  ];
+  const months = [
+    'янв',
+    'фев',
+    'мар',
+    'апр',
+    'май',
+    'июн',
+    'июл',
+    'авг',
+    'сен',
+    'окт',
+    'ноя',
+    'дек',
+  ];
   return '${weekdays[dt.weekday % 7]} · ${dt.day} ${months[dt.month - 1]}';
 }
 
@@ -81,6 +111,71 @@ class _Signal {
   final String body;
   final NLSignalLevel level;
   const _Signal(this.title, this.body, this.level);
+}
+
+class _PatientNotificationButton extends StatefulWidget {
+  const _PatientNotificationButton();
+
+  @override
+  State<_PatientNotificationButton> createState() =>
+      _PatientNotificationButtonState();
+}
+
+class _PatientNotificationButtonState
+    extends State<_PatientNotificationButton> {
+  int _count = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final profile = context.read<ProfileProvider>().profile;
+    if (profile == null) return;
+    final notifications = await SupabaseService.getUnreadNotificationCount();
+    final messages = profile.doctorId == null
+        ? 0
+        : await SupabaseService.getUnreadChatCount(profile.doctorId!);
+    if (!mounted) return;
+    setState(() => _count = notifications + messages);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        NLCircleBtn(
+          onTap: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const PatientCareScreen()),
+            );
+            if (mounted) _load();
+          },
+          child: const Icon(
+            Icons.notifications_outlined,
+            color: NLColors.ink,
+            size: 18,
+          ),
+        ),
+        if (_count > 0)
+          Positioned(
+            top: 8,
+            right: 9,
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: NLColors.bad,
+                shape: BoxShape.circle,
+                border: Border.all(color: NLColors.surface, width: 2),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 _Signal? _calcWarningSignal(DiaryProvider diary, TestResultsProvider tests) {
@@ -117,14 +212,20 @@ _Signal? _calcWarningSignal(DiaryProvider diary, TestResultsProvider tests) {
   }
 
   // Reaction time increased >= 15% (compare newest half vs older half of last 4+ results)
-  final reactionResults =
-      tests.results.where((r) => r.type == TestType.reaction).toList();
+  final reactionResults = tests.results
+      .where((r) => r.type == TestType.reaction)
+      .toList();
   if (reactionResults.length >= 4) {
     final half = reactionResults.length ~/ 2;
     final recentAvg =
-        reactionResults.take(half).fold<double>(0, (s, r) => s + r.value) / half;
+        reactionResults.take(half).fold<double>(0, (s, r) => s + r.value) /
+        half;
     final prevAvg =
-        reactionResults.skip(half).take(half).fold<double>(0, (s, r) => s + r.value) / half;
+        reactionResults
+            .skip(half)
+            .take(half)
+            .fold<double>(0, (s, r) => s + r.value) /
+        half;
     if (prevAvg > 0 && (recentAvg - prevAvg) / prevAvg >= 0.15) {
       return const _Signal(
         'Возможный сигнал ухудшения',
@@ -149,8 +250,9 @@ class _HomeTab extends StatelessWidget {
     final tests = context.watch<TestResultsProvider>();
 
     final now = DateTime.now();
-    final greeting =
-        profile.hasProfile ? 'Привет, ${profile.profile!.name}' : 'Привет';
+    final greeting = profile.hasProfile
+        ? 'Привет, ${profile.profile!.name}'
+        : 'Привет';
     final avatarLetter = profile.avatarLetter;
 
     final avgFatigue = diary.averageLastDays((e) => e.fatigue.toDouble(), 7);
@@ -181,27 +283,7 @@ class _HomeTab extends StatelessWidget {
               title: greeting,
               actions: [
                 const SizedBox(width: 8),
-                Stack(
-                  children: [
-                    NLCircleBtn(
-                        child: const Icon(Icons.notifications_outlined,
-                            color: NLColors.ink, size: 18)),
-                    Positioned(
-                      top: 8,
-                      right: 9,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: NLColors.bad,
-                          shape: BoxShape.circle,
-                          border:
-                              Border.all(color: NLColors.surface, width: 2),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                const _PatientNotificationButton(),
                 const SizedBox(width: 8),
                 NLAvatar(avatarLetter),
               ],
@@ -296,42 +378,62 @@ class _HomeTab extends StatelessWidget {
                               : 'Создайте первую запись дневника, чтобы начать мониторинг.',
                           level: NLSignalLevel.info,
                         ),
+                  const NLSectionTitle('Врач и лечение'),
+                  const PatientCarePreviewCard(),
                   const NLSectionTitle('Тесты на сегодня'),
-                  NLList(children: [
-                    GestureDetector(
-                      onTap: () => Navigator.of(context).push(
+                  NLList(
+                    children: [
+                      GestureDetector(
+                        onTap: () => Navigator.of(context).push(
                           MaterialPageRoute(
-                              builder: (_) => const TappingTestScreen())),
-                      child: NLListRow(
-                        icon: const Icon(Icons.ads_click_rounded,
-                            color: NLColors.accent, size: 18),
-                        iconBg: NLColors.accentSoft,
-                        title: 'Таппинг-тест',
-                        sub: tapping != null
-                            ? 'Последний: ${tapping.value.toStringAsFixed(1)} уд/с'
-                            : 'Моторика · 10 секунд',
-                        right: const Icon(Icons.chevron_right_rounded,
-                            color: NLColors.muted, size: 20),
+                            builder: (_) => const TappingTestScreen(),
+                          ),
+                        ),
+                        child: NLListRow(
+                          icon: const Icon(
+                            Icons.ads_click_rounded,
+                            color: NLColors.accent,
+                            size: 18,
+                          ),
+                          iconBg: NLColors.accentSoft,
+                          title: 'Таппинг-тест',
+                          sub: tapping != null
+                              ? 'Последний: ${tapping.value.toStringAsFixed(1)} уд/с'
+                              : 'Моторика · 10 секунд',
+                          right: const Icon(
+                            Icons.chevron_right_rounded,
+                            color: NLColors.muted,
+                            size: 20,
+                          ),
+                        ),
                       ),
-                    ),
-                    GestureDetector(
-                      onTap: () => Navigator.of(context).push(
+                      GestureDetector(
+                        onTap: () => Navigator.of(context).push(
                           MaterialPageRoute(
-                              builder: (_) => const ReactionTestScreen())),
-                      child: NLListRow(
-                        icon: const Icon(Icons.bolt_rounded,
-                            color: NLColors.peach, size: 18),
-                        iconBg: NLColors.peachSoft,
-                        title: 'Тест реакции',
-                        sub: reaction != null
-                            ? 'Последний: ${reaction.value.round()} мс'
-                            : '5 попыток · 30 секунд',
-                        last: true,
-                        right: const Icon(Icons.chevron_right_rounded,
-                            color: NLColors.muted, size: 20),
+                            builder: (_) => const ReactionTestScreen(),
+                          ),
+                        ),
+                        child: NLListRow(
+                          icon: const Icon(
+                            Icons.bolt_rounded,
+                            color: NLColors.peach,
+                            size: 18,
+                          ),
+                          iconBg: NLColors.peachSoft,
+                          title: 'Тест реакции',
+                          sub: reaction != null
+                              ? 'Последний: ${reaction.value.round()} мс'
+                              : '5 попыток · 30 секунд',
+                          last: true,
+                          right: const Icon(
+                            Icons.chevron_right_rounded,
+                            color: NLColors.muted,
+                            size: 20,
+                          ),
+                        ),
                       ),
-                    ),
-                  ]),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -355,7 +457,8 @@ class _TodayCard extends StatelessWidget {
     if (entry != null) {
       return GestureDetector(
         onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => DiaryEntryScreen(entry: entry))),
+          MaterialPageRoute(builder: (_) => DiaryEntryScreen(entry: entry)),
+        ),
         child: NLCard(
           color: NLColors.mintSoft,
           child: Row(
@@ -364,41 +467,58 @@ class _TodayCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('СЕГОДНЯ',
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: NLColors.good,
-                            letterSpacing: 1.1)),
+                    const Text(
+                      'СЕГОДНЯ',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: NLColors.good,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
                     const SizedBox(height: 4),
-                    const Text('Запись сделана',
-                        style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: NLColors.ink)),
+                    const Text(
+                      'Запись сделана',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: NLColors.ink,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       'Усталость ${entry.fatigue} · Боль ${entry.pain} · Настроение ${entry.mood}',
-                      style: const TextStyle(fontSize: 13, color: NLColors.muted),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: NLColors.muted,
+                      ),
                     ),
                   ],
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                    color: NLColors.ink,
-                    borderRadius: BorderRadius.circular(999)),
-                child: Row(children: const [
-                  Icon(Icons.edit_outlined, size: 14, color: Colors.white),
-                  SizedBox(width: 6),
-                  Text('Изменить',
+                  color: NLColors.ink,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  children: const [
+                    Icon(Icons.edit_outlined, size: 14, color: Colors.white),
+                    SizedBox(width: 6),
+                    Text(
+                      'Изменить',
                       style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white)),
-                ]),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -407,8 +527,9 @@ class _TodayCard extends StatelessWidget {
     }
 
     return GestureDetector(
-      onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const DiaryEntryScreen())),
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const DiaryEntryScreen())),
       child: NLCard(
         color: NLColors.accentSoft,
         child: Row(
@@ -417,39 +538,52 @@ class _TodayCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: const [
-                  Text('СЕГОДНЯ',
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: NLColors.accent,
-                          letterSpacing: 1.1)),
+                  Text(
+                    'СЕГОДНЯ',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: NLColors.accent,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
                   SizedBox(height: 4),
-                  Text('Запись не сделана',
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: NLColors.ink)),
+                  Text(
+                    'Запись не сделана',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: NLColors.ink,
+                    ),
+                  ),
                   SizedBox(height: 4),
-                  Text('Займёт около 30 секунд',
-                      style: TextStyle(fontSize: 13, color: NLColors.muted)),
+                  Text(
+                    'Займёт около 30 секунд',
+                    style: TextStyle(fontSize: 13, color: NLColors.muted),
+                  ),
                 ],
               ),
             ),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                  color: NLColors.ink,
-                  borderRadius: BorderRadius.circular(999)),
-              child: Row(children: const [
-                Icon(Icons.add, size: 14, color: Colors.white),
-                SizedBox(width: 6),
-                Text('Заполнить',
+                color: NLColors.ink,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                children: const [
+                  Icon(Icons.add, size: 14, color: Colors.white),
+                  SizedBox(width: 6),
+                  Text(
+                    'Заполнить',
                     style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white)),
-              ]),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -486,46 +620,57 @@ class _ConditionIndexCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('ИНДЕКС СОСТОЯНИЯ',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: NLColors.muted,
-                        letterSpacing: 0.8)),
+                const Text(
+                  'ИНДЕКС СОСТОЯНИЯ',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: NLColors.muted,
+                    letterSpacing: 0.8,
+                  ),
+                ),
                 const SizedBox(height: 6),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
                   children: [
-                    Text('$index',
-                        style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w700,
-                            color: color,
-                            letterSpacing: -0.5)),
+                    Text(
+                      '$index',
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w700,
+                        color: color,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
                     const SizedBox(width: 4),
-                    const Text('/100',
-                        style: TextStyle(
-                            fontSize: 14,
-                            color: NLColors.muted,
-                            fontWeight: FontWeight.w500)),
+                    const Text(
+                      '/100',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: NLColors.muted,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ],
                 ),
               ],
             ),
           ),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(999),
             ),
-            child: Text(label,
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: color)),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+            ),
           ),
         ],
       ),
@@ -543,14 +688,19 @@ class _EmptyDataCard extends StatelessWidget {
         children: const [
           Icon(Icons.bar_chart_rounded, size: 36, color: NLColors.muted),
           SizedBox(height: 10),
-          Text('Пока нет данных для анализа',
-              style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: NLColors.ink)),
+          Text(
+            'Пока нет данных для анализа',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: NLColors.ink,
+            ),
+          ),
           SizedBox(height: 4),
-          Text('Создайте первую запись дневника',
-              style: TextStyle(fontSize: 13, color: NLColors.muted)),
+          Text(
+            'Создайте первую запись дневника',
+            style: TextStyle(fontSize: 13, color: NLColors.muted),
+          ),
         ],
       ),
     );
