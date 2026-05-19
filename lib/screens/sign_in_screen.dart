@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../app_theme.dart';
+import '../services/storage_service.dart';
 import '../services/supabase_service.dart';
 import '../state/profile_provider.dart';
 import '../state/diary_provider.dart';
@@ -11,6 +12,7 @@ import '../widgets/nl_widgets.dart';
 import '../models/user_profile.dart';
 import 'doctor_home_screen.dart';
 import 'home_screen.dart';
+import 'lock_screen.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -107,10 +109,14 @@ class _SignInScreenState extends State<SignInScreen> {
       }
 
       if (!mounted) return;
+      final destination = profile.isDoctor
+          ? const DoctorHomeScreen()
+          : const HomeScreen();
+      final shouldLock = profile.pinEnabled && hasAppPin();
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
           builder: (_) =>
-              profile.isDoctor ? const DoctorHomeScreen() : const HomeScreen(),
+              shouldLock ? LockScreen(destination: destination) : destination,
         ),
         (_) => false,
       );
@@ -260,45 +266,6 @@ class _SignInScreenState extends State<SignInScreen> {
                         )
                       else
                         NLButton(label: 'Войти', full: true, onTap: _submit),
-                      const SizedBox(height: 18),
-                      Row(
-                        children: const [
-                          Expanded(child: Divider(color: NLColors.line)),
-                          Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 12),
-                            child: Text(
-                              'или',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: NLColors.muted,
-                              ),
-                            ),
-                          ),
-                          Expanded(child: Divider(color: NLColors.line)),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      NLButton(
-                        label: 'Продолжить с Apple',
-                        full: true,
-                        primary: false,
-                        icon: const Icon(
-                          Icons.apple,
-                          size: 18,
-                          color: NLColors.ink,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      NLButton(
-                        label: 'Войти по Face ID',
-                        full: true,
-                        primary: false,
-                        icon: const Icon(
-                          Icons.face_retouching_natural,
-                          size: 18,
-                          color: NLColors.ink,
-                        ),
-                      ),
                       const SizedBox(height: 32),
                     ],
                   ),

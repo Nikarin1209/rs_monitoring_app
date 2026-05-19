@@ -55,8 +55,10 @@ class DiaryProvider extends ChangeNotifier {
     final start = now.subtract(Duration(days: windowDays * 2));
 
     final current = getByPeriod(mid, now);
-    final previous =
-        getByPeriod(start, mid.subtract(const Duration(seconds: 1)));
+    final previous = getByPeriod(
+      start,
+      mid.subtract(const Duration(seconds: 1)),
+    );
     if (current.isEmpty || previous.isEmpty) return null;
 
     final avgCurrent =
@@ -89,10 +91,16 @@ class DiaryProvider extends ChangeNotifier {
 
   Future<void> add(DiaryEntry entry) async {
     final userId = SupabaseService.currentUserId;
-    if (userId == null) return;
+    if (userId == null) {
+      _error = 'Не удалось сохранить запись';
+      notifyListeners();
+      throw StateError('Пользователь не авторизован');
+    }
     try {
       await SupabaseService.insertDiaryEntry(userId, entry);
-      final idx = _entries.indexWhere((e) => e.dateTime.isBefore(entry.dateTime));
+      final idx = _entries.indexWhere(
+        (e) => e.dateTime.isBefore(entry.dateTime),
+      );
       if (idx == -1) {
         _entries.add(entry);
       } else {
@@ -101,13 +109,19 @@ class DiaryProvider extends ChangeNotifier {
       _error = null;
     } catch (e) {
       _error = 'Не удалось сохранить запись';
+      notifyListeners();
+      rethrow;
     }
     notifyListeners();
   }
 
   Future<void> update(DiaryEntry entry) async {
     final userId = SupabaseService.currentUserId;
-    if (userId == null) return;
+    if (userId == null) {
+      _error = 'Не удалось обновить запись';
+      notifyListeners();
+      throw StateError('Пользователь не авторизован');
+    }
     try {
       await SupabaseService.updateDiaryEntry(userId, entry);
       final idx = _entries.indexWhere((e) => e.id == entry.id);
@@ -115,6 +129,8 @@ class DiaryProvider extends ChangeNotifier {
       _error = null;
     } catch (e) {
       _error = 'Не удалось обновить запись';
+      notifyListeners();
+      rethrow;
     }
     notifyListeners();
   }

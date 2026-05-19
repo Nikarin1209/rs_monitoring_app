@@ -10,6 +10,8 @@ import '../models/test_result.dart';
 import '../services/analytics_service.dart';
 import '../services/export_service.dart';
 
+enum _ExportFormat { csv, pdf }
+
 class ExportScreen extends StatefulWidget {
   const ExportScreen({super.key});
 
@@ -24,20 +26,34 @@ class _ExportScreenState extends State<ExportScreen> {
   bool _analytics = true;
   bool _signals = true;
   bool _loading = false;
+  _ExportFormat _format = _ExportFormat.csv;
 
-  int? get _periodDays =>
-      _period == '7 дн' ? 7 : _period == '30 дн' ? 30 : null;
+  int? get _periodDays => _period == '7 дн'
+      ? 7
+      : _period == '30 дн'
+      ? 30
+      : null;
 
   String get _periodLabel => _period == '7 дн'
       ? '7 дней'
       : _period == '30 дн'
-          ? '30 дней'
-          : 'Все данные';
+      ? '30 дней'
+      : 'Все данные';
 
   String _fmtShortDate(DateTime dt) {
     const months = [
-      'янв', 'фев', 'мар', 'апр', 'май', 'июн',
-      'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'
+      'янв',
+      'фев',
+      'мар',
+      'апр',
+      'май',
+      'июн',
+      'июл',
+      'авг',
+      'сен',
+      'окт',
+      'ноя',
+      'дек',
     ];
     return '${dt.day} ${months[dt.month - 1]}';
   }
@@ -47,10 +63,14 @@ class _ExportScreenState extends State<ExportScreen> {
     final allDiary = context.read<DiaryProvider>().diaryEntriesSorted;
     final allTests = context.read<TestResultsProvider>().results;
 
-    final filteredDiary =
-        ExportService.filterDiaryByPeriod(allDiary, _periodDays);
-    final filteredTests =
-        ExportService.filterTestsByPeriod(allTests, _periodDays);
+    final filteredDiary = ExportService.filterDiaryByPeriod(
+      allDiary,
+      _periodDays,
+    );
+    final filteredTests = ExportService.filterTestsByPeriod(
+      allTests,
+      _periodDays,
+    );
 
     // Always export all filtered data so the analytics summary is complete.
     // The include toggles control the section counts shown to the user.
@@ -58,15 +78,30 @@ class _ExportScreenState extends State<ExportScreen> {
     // Capture messenger before any async gap to satisfy context safety rules.
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final file = await ExportService.exportCsv(
-        profile: profile,
-        diaryEntries: filteredDiary,
-        testResults: filteredTests,
-        periodLabel: _periodLabel,
-      );
+      final file = _format == _ExportFormat.pdf
+          ? await ExportService.exportPdf(
+              profile: profile,
+              diaryEntries: filteredDiary,
+              testResults: filteredTests,
+              periodLabel: _periodLabel,
+            )
+          : await ExportService.exportCsv(
+              profile: profile,
+              diaryEntries: filteredDiary,
+              testResults: filteredTests,
+              periodLabel: _periodLabel,
+            );
       await Share.shareXFiles(
-        [XFile(file.path)],
-        text: 'NeuroLife — отчёт пациента',
+        [
+          XFile.fromData(
+            file.bytes,
+            name: file.filename,
+            mimeType: file.mimeType,
+          ),
+        ],
+        text: _format == _ExportFormat.pdf
+            ? 'NeuroLife — PDF-отчёт пациента'
+            : 'NeuroLife — отчёт пациента',
       );
     } catch (e) {
       messenger.showSnackBar(
@@ -85,18 +120,25 @@ class _ExportScreenState extends State<ExportScreen> {
     final diary = context.watch<DiaryProvider>();
     final tests = context.watch<TestResultsProvider>();
 
-    final filteredDiary =
-        ExportService.filterDiaryByPeriod(diary.diaryEntriesSorted, _periodDays);
-    final filteredTests =
-        ExportService.filterTestsByPeriod(tests.results, _periodDays);
+    final filteredDiary = ExportService.filterDiaryByPeriod(
+      diary.diaryEntriesSorted,
+      _periodDays,
+    );
+    final filteredTests = ExportService.filterTestsByPeriod(
+      tests.results,
+      _periodDays,
+    );
 
-    final tappingCount =
-        filteredTests.where((r) => r.type == TestType.tapping).length;
-    final reactionCount =
-        filteredTests.where((r) => r.type == TestType.reaction).length;
-    final signalCount = AnalyticsService.generateSignals(
-            filteredDiary, filteredTests)
+    final tappingCount = filteredTests
+        .where((r) => r.type == TestType.tapping)
         .length;
+    final reactionCount = filteredTests
+        .where((r) => r.type == TestType.reaction)
+        .length;
+    final signalCount = AnalyticsService.generateSignals(
+      filteredDiary,
+      filteredTests,
+    ).length;
 
     final now = DateTime.now();
     final from = _periodDays != null
@@ -131,153 +173,166 @@ class _ExportScreenState extends State<ExportScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Отчёт для врача',
-                        style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.8,
-                            color: NLColors.ink)),
+                    const Text(
+                      'Отчёт для врача',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.8,
+                        color: NLColors.ink,
+                      ),
+                    ),
                     const SizedBox(height: 6),
-                    const Text('Готовый файл с дневником и тестами',
-                        style: TextStyle(
-                            fontSize: 14,
-                            color: NLColors.muted,
-                            height: 1.5)),
+                    const Text(
+                      'Готовый файл с дневником и тестами',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: NLColors.muted,
+                        height: 1.5,
+                      ),
+                    ),
                     const SizedBox(height: 22),
 
                     // Period
                     NLCard(
                       child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Период',
-                                style: TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w600,
-                                    color: NLColors.ink)),
-                            const SizedBox(height: 12),
-                            NLSegmented(
-                              items: const ['7 дн', '30 дн', 'Всё'],
-                              active: _period,
-                              onChange: (v) =>
-                                  setState(() => _period = v),
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Период',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                              color: NLColors.ink,
                             ),
-                            const NLDivider(),
-                            Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  dateFrom != null
-                                      ? 'С ${_fmtShortDate(dateFrom)}'
-                                      : 'Все записи',
-                                  style: const TextStyle(
-                                      fontSize: 14,
-                                      color: NLColors.muted),
+                          ),
+                          const SizedBox(height: 12),
+                          NLSegmented(
+                            items: const ['7 дн', '30 дн', 'Всё'],
+                            active: _period,
+                            onChange: (v) => setState(() => _period = v),
+                          ),
+                          const NLDivider(),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                dateFrom != null
+                                    ? 'С ${_fmtShortDate(dateFrom)}'
+                                    : 'Все записи',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: NLColors.muted,
                                 ),
-                                Text(
-                                  'по ${_fmtShortDate(now)}',
-                                  style: const TextStyle(
-                                      fontSize: 14,
-                                      color: NLColors.muted),
+                              ),
+                              Text(
+                                'по ${_fmtShortDate(now)}',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: NLColors.muted,
                                 ),
-                              ],
-                            ),
-                          ]),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 14),
 
                     // Include toggles with real counts
                     NLCard(
                       child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Включить',
-                                style: TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w600,
-                                    color: NLColors.ink)),
-                            const SizedBox(height: 12),
-                            _IncludeRow(
-                              label: 'Записи дневника',
-                              sub: filteredDiary.isEmpty
-                                  ? 'Нет записей'
-                                  : '${filteredDiary.length} записей',
-                              value: _diary,
-                              onChanged: (v) =>
-                                  setState(() => _diary = v),
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Включить',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                              color: NLColors.ink,
                             ),
-                            _IncludeRow(
-                              label: 'Результаты тестов',
-                              sub: filteredTests.isEmpty
-                                  ? 'Нет данных'
-                                  : 'Таппинг $tappingCount · Реакция $reactionCount',
-                              value: _tests,
-                              onChanged: (v) =>
-                                  setState(() => _tests = v),
-                            ),
-                            _IncludeRow(
-                              label: 'Аналитика и сводка',
-                              sub: 'Средние показатели за период',
-                              value: _analytics,
-                              onChanged: (v) =>
-                                  setState(() => _analytics = v),
-                            ),
-                            _IncludeRow(
-                              label: 'Сигналы и инсайты',
-                              sub: signalCount == 0
-                                  ? 'Активных сигналов нет'
-                                  : '$signalCount активных сигналов',
-                              value: _signals,
-                              onChanged: (v) =>
-                                  setState(() => _signals = v),
-                              last: true,
-                            ),
-                          ]),
+                          ),
+                          const SizedBox(height: 12),
+                          _IncludeRow(
+                            label: 'Записи дневника',
+                            sub: filteredDiary.isEmpty
+                                ? 'Нет записей'
+                                : '${filteredDiary.length} записей',
+                            value: _diary,
+                            onChanged: (v) => setState(() => _diary = v),
+                          ),
+                          _IncludeRow(
+                            label: 'Результаты тестов',
+                            sub: filteredTests.isEmpty
+                                ? 'Нет данных'
+                                : 'Таппинг $tappingCount · Реакция $reactionCount',
+                            value: _tests,
+                            onChanged: (v) => setState(() => _tests = v),
+                          ),
+                          _IncludeRow(
+                            label: 'Аналитика и сводка',
+                            sub: 'Средние показатели за период',
+                            value: _analytics,
+                            onChanged: (v) => setState(() => _analytics = v),
+                          ),
+                          _IncludeRow(
+                            label: 'Сигналы и инсайты',
+                            sub: signalCount == 0
+                                ? 'Активных сигналов нет'
+                                : '$signalCount активных сигналов',
+                            value: _signals,
+                            onChanged: (v) => setState(() => _signals = v),
+                            last: true,
+                          ),
+                        ],
+                      ),
                     ),
 
                     const NLSectionTitle('Формат'),
-                    Row(children: [
-                      Expanded(
+                    Row(
+                      children: [
+                        Expanded(
                           child: _FormatCard(
-                        label: 'CSV',
-                        sub: 'Таблица · UTF-8',
-                        icon: Icons.table_chart_outlined,
-                        selected: true,
-                        onTap: () {},
-                      )),
-                      const SizedBox(width: 10),
-                      Expanded(
+                            label: 'CSV',
+                            sub: 'Таблица · UTF-8',
+                            icon: Icons.table_chart_outlined,
+                            selected: _format == _ExportFormat.csv,
+                            onTap: () =>
+                                setState(() => _format = _ExportFormat.csv),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
                           child: _FormatCard(
-                        label: 'PDF',
-                        sub: 'Скоро',
-                        icon: Icons.picture_as_pdf_outlined,
-                        selected: false,
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content:
-                                    Text('PDF экспорт будет доступен в следующей версии')),
-                          );
-                        },
-                      )),
-                    ]),
+                            label: 'PDF',
+                            sub: 'Документ · PDF',
+                            icon: Icons.picture_as_pdf_outlined,
+                            selected: _format == _ExportFormat.pdf,
+                            onTap: () =>
+                                setState(() => _format = _ExportFormat.pdf),
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 14),
 
                     NLButton(
-                      label: _loading
-                          ? 'Формирую...'
-                          : 'Сформировать отчёт',
+                      label: _loading ? 'Формирую...' : 'Сформировать отчёт',
                       full: true,
                       icon: _loading
                           ? const SizedBox(
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white))
-                          : const Icon(Icons.download_outlined,
-                              size: 18, color: Colors.white),
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.download_outlined,
+                              size: 18,
+                              color: Colors.white,
+                            ),
                       onTap: _loading ? null : () => _export(context),
                     ),
                   ],
@@ -313,28 +368,36 @@ class _IncludeRow extends StatelessWidget {
       decoration: BoxDecoration(
         border: last
             ? null
-            : const Border(
-                bottom: BorderSide(color: NLColors.line2)),
+            : const Border(bottom: BorderSide(color: NLColors.line2)),
       ),
-      child: Row(children: [
-        Expanded(
+      child: Row(
+        children: [
+          Expanded(
             child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-              Text(label,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
                   style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: NLColors.ink)),
-              const SizedBox(height: 2),
-              Text(sub,
-                  style:
-                      const TextStyle(fontSize: 12, color: NLColors.muted)),
-            ])),
-        GestureDetector(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: NLColors.ink,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  sub,
+                  style: const TextStyle(fontSize: 12, color: NLColors.muted),
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
             onTap: () => onChanged(!value),
-            child: NLToggle(on: value)),
-      ]),
+            child: NLToggle(on: value),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -364,26 +427,34 @@ class _FormatCard extends StatelessWidget {
           color: NLColors.surface,
           borderRadius: BorderRadius.all(NLRadius.md),
           border: Border.all(
-              color: selected ? NLColors.ink : NLColors.line,
-              width: selected ? 1.5 : 1),
+            color: selected ? NLColors.ink : NLColors.line,
+            width: selected ? 1.5 : 1,
+          ),
           boxShadow: shadowCard,
         ),
         child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon,
-                  size: 22,
-                  color: selected ? NLColors.ink : NLColors.muted),
-              const SizedBox(height: 8),
-              Text(label,
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: selected ? NLColors.ink : NLColors.muted)),
-              const SizedBox(height: 2),
-              Text(sub,
-                  style: const TextStyle(
-                      fontSize: 11, color: NLColors.muted)),
-            ]),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              icon,
+              size: 22,
+              color: selected ? NLColors.ink : NLColors.muted,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: selected ? NLColors.ink : NLColors.muted,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              sub,
+              style: const TextStyle(fontSize: 11, color: NLColors.muted),
+            ),
+          ],
+        ),
       ),
     );
   }

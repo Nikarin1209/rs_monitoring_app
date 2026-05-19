@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../app_theme.dart';
+import '../models/diary_entry.dart';
 import '../models/doctor_models.dart';
 import '../services/supabase_service.dart';
 import '../state/profile_provider.dart';
@@ -10,6 +11,13 @@ import 'chat_screen.dart';
 import 'settings_screen.dart';
 
 const _uuid = Uuid();
+
+int _maxMsSymptom(DiaryEntry entry) => [
+  entry.numbness,
+  entry.coordination,
+  entry.vision,
+  entry.weakness,
+].reduce((a, b) => a > b ? a : b);
 
 class DoctorHomeScreen extends StatefulWidget {
   const DoctorHomeScreen({super.key});
@@ -636,7 +644,7 @@ class _DoctorPatientScreenState extends State<DoctorPatientScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Усталость ${latest.fatigue} · Боль ${latest.pain} · Настроение ${latest.mood} · Сон ${latest.sleepHours.toStringAsFixed(1)} ч',
+                            'Усталость ${latest.fatigue} · Боль ${latest.pain} · РС ${_maxMsSymptom(latest)} · Стресс ${latest.stress} · Сон ${latest.sleepHours.toStringAsFixed(1)} ч',
                             style: const TextStyle(
                               fontSize: 15,
                               color: NLColors.ink,
@@ -728,7 +736,7 @@ class _PatientListRow extends StatelessWidget {
   String _latestText() {
     final latest = overview.latestDiaryEntry;
     if (latest == null) return 'Нет записей дневника';
-    return 'Усталость ${latest.fatigue} · Боль ${latest.pain} · Настроение ${latest.mood}';
+    return 'Усталость ${latest.fatigue} · Боль ${latest.pain} · РС ${_maxMsSymptom(latest)} · Стресс ${latest.stress}';
   }
 
   @override

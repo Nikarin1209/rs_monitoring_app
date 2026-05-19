@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../app_theme.dart';
 import '../widgets/nl_widgets.dart';
+import '../models/app_settings.dart';
 import '../models/user_profile.dart';
+import '../services/storage_service.dart';
 import '../services/supabase_service.dart';
 import '../state/profile_provider.dart';
 import '../state/diary_provider.dart';
@@ -105,6 +108,11 @@ class SettingsBody extends StatelessWidget {
     return age;
   }
 
+  static String _phoneDigits(String value) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    return digits.length <= 11 ? digits : digits.substring(0, 11);
+  }
+
   static String _personalDataSub(UserProfile profile) {
     final age = _age(profile.birthDate);
     final parts = [
@@ -144,15 +152,19 @@ class SettingsBody extends StatelessWidget {
   ) async {
     final nameCtrl = TextEditingController(text: profile.name);
     final emailCtrl = TextEditingController(text: profile.email);
-    final phoneCtrl = TextEditingController(text: profile.phone);
+    final phoneCtrl = TextEditingController(text: _phoneDigits(profile.phone));
     final therapyCtrl = TextEditingController(text: profile.currentTherapy);
     final clinicCtrl = TextEditingController(text: profile.clinicName);
     final emergencyNameCtrl = TextEditingController(
       text: profile.emergencyContactName,
     );
     final emergencyPhoneCtrl = TextEditingController(
-      text: profile.emergencyContactPhone,
+      text: _phoneDigits(profile.emergencyContactPhone),
     );
+    final phoneInputFormatters = [
+      FilteringTextInputFormatter.digitsOnly,
+      LengthLimitingTextInputFormatter(11),
+    ];
 
     DateTime selectedObservationDate = profile.observationStartDate;
     DateTime? selectedBirthDate = profile.birthDate;
@@ -325,6 +337,7 @@ class SettingsBody extends StatelessWidget {
                     label: 'Телефон',
                     controller: phoneCtrl,
                     keyboardType: TextInputType.phone,
+                    inputFormatters: phoneInputFormatters,
                   ),
                   const SizedBox(height: 14),
                   _ProfileTextField(
@@ -336,6 +349,7 @@ class SettingsBody extends StatelessWidget {
                     label: 'Телефон экстренного контакта',
                     controller: emergencyPhoneCtrl,
                     keyboardType: TextInputType.phone,
+                    inputFormatters: phoneInputFormatters,
                   ),
                 ],
               ),
@@ -365,7 +379,7 @@ class SettingsBody extends StatelessWidget {
                     observationStartDate: selectedObservationDate,
                     birthDate: selectedBirthDate,
                     sex: selectedSex,
-                    phone: phoneCtrl.text.trim(),
+                    phone: _phoneDigits(phoneCtrl.text),
                     msType: selectedMsType,
                     diagnosisDate: selectedDiagnosisDate,
                     currentTherapy: therapyCtrl.text.trim(),
@@ -375,7 +389,9 @@ class SettingsBody extends StatelessWidget {
                     doctorName: selectedDoctor?.name ?? '',
                     clinicName: clinicCtrl.text.trim(),
                     emergencyContactName: emergencyNameCtrl.text.trim(),
-                    emergencyContactPhone: emergencyPhoneCtrl.text.trim(),
+                    emergencyContactPhone: _phoneDigits(
+                      emergencyPhoneCtrl.text,
+                    ),
                   );
                   try {
                     await context.read<ProfileProvider>().saveProfile(
@@ -415,6 +431,7 @@ class SettingsBody extends StatelessWidget {
     BuildContext context,
     UserProfile profile,
   ) async {
+    final settings = context.read<SettingsProvider>().settings;
     int fatigue = profile.baselineFatigue;
     int pain = profile.baselinePain;
     double sleep = profile.baselineSleep;
@@ -459,6 +476,9 @@ class SettingsBody extends StatelessWidget {
                 value: sleep,
                 min: 0,
                 max: 12,
+                unit: settings.sleepUnit,
+                valueLabel:
+                    '${settings.formatSleepValue(sleep)} ${settings.sleepUnit}',
                 onChanged: (v) => setDialogState(() => sleep = v),
               ),
             ],
@@ -500,6 +520,333 @@ class SettingsBody extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  // ── Edit scales and units dialog ───────────────────────────────────────
+  static Future<void> _showScalesAndUnitsDialog(BuildContext context) async {
+    final settingsProvider = context.read<SettingsProvider>();
+    final settings = settingsProvider.settings;
+    int selectedScaleMax = settings.symptomScaleMax;
+    String selectedSymptomUnit =
+        AppSettings.supportedSymptomScaleUnits.containsKey(
+          settings.symptomScaleUnit,
+        )
+        ? settings.symptomScaleUnit
+        : 'баллов';
+    String selectedSleepUnit =
+        AppSettings.supportedSleepUnits.containsKey(settings.sleepUnit)
+        ? settings.sleepUnit
+        : 'ч';
+    String selectedTappingUnit =
+        AppSettings.supportedTappingUnits.containsKey(settings.tappingUnit)
+        ? settings.tappingUnit
+        : 'уд/с';
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: NLColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Шкалы и единицы',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: NLColors.ink,
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _ProfileSectionLabel('Шкала симптомов'),
+                NLSegmented(
+                  items: AppSettings.supportedSymptomScaleMax
+                      .map((max) => '0–$max')
+                      .toList(),
+                  active: '0–$selectedScaleMax',
+                  onChange: (value) {
+                    final max = int.tryParse(value.split('–').last);
+                    if (max != null) {
+                      setDialogState(() => selectedScaleMax = max);
+                    }
+                  },
+                ),
+                const SizedBox(height: 14),
+                _ProfileDropdown(
+                  label: 'Единица шкалы',
+                  value: selectedSymptomUnit,
+                  items: AppSettings.supportedSymptomScaleUnits,
+                  onChanged: (v) {
+                    if (v != null) {
+                      setDialogState(() => selectedSymptomUnit = v);
+                    }
+                  },
+                ),
+                const SizedBox(height: 20),
+                const _ProfileSectionLabel('Единицы измерения'),
+                _ProfileDropdown(
+                  label: 'Сон',
+                  value: selectedSleepUnit,
+                  items: AppSettings.supportedSleepUnits,
+                  onChanged: (v) {
+                    if (v != null) {
+                      setDialogState(() => selectedSleepUnit = v);
+                    }
+                  },
+                ),
+                const SizedBox(height: 14),
+                _ProfileDropdown(
+                  label: 'Таппинг',
+                  value: selectedTappingUnit,
+                  items: AppSettings.supportedTappingUnits,
+                  onChanged: (v) {
+                    if (v != null) {
+                      setDialogState(() => selectedTappingUnit = v);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text(
+                'Отмена',
+                style: TextStyle(color: NLColors.muted),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                try {
+                  await context.read<SettingsProvider>().setScalesAndUnits(
+                    symptomScaleMax: selectedScaleMax,
+                    symptomScaleUnit: selectedSymptomUnit,
+                    sleepUnit: selectedSleepUnit,
+                    tappingUnit: selectedTappingUnit,
+                    throwOnError: true,
+                  );
+                  if (ctx.mounted) Navigator.of(ctx).pop();
+                } catch (e) {
+                  if (context.mounted) {
+                    final message = e is PostgrestException
+                        ? e.message
+                        : 'Попробуйте ещё раз.';
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Не удалось сохранить шкалы и единицы. $message',
+                        ),
+                      ),
+                    );
+                  }
+                }
+              },
+              child: const Text(
+                'Сохранить',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: NLColors.accent,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── App protection dialogs ─────────────────────────────────────────────
+  static Future<void> _showAppProtectionDialog(
+    BuildContext context,
+    UserProfile profile,
+  ) async {
+    final pinIsActive = profile.pinEnabled && hasAppPin();
+    if (!pinIsActive) {
+      await _showSetPinDialog(context, profile);
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: NLColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Защита приложения',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: NLColors.ink,
+          ),
+        ),
+        content: const Text(
+          'PIN-код включён на этом устройстве.',
+          style: TextStyle(fontSize: 14, color: NLColors.muted, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text(
+              'Отмена',
+              style: TextStyle(color: NLColors.muted),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              final profileProvider = context.read<ProfileProvider>();
+              await deleteAppPin();
+              try {
+                await profileProvider.saveProfile(
+                  profile.copyWith(pinEnabled: false, faceIdEnabled: false),
+                  throwOnError: true,
+                );
+                if (ctx.mounted) Navigator.of(ctx).pop();
+              } catch (e) {
+                if (context.mounted) _showProfileSaveError(context, e);
+              }
+            },
+            child: const Text(
+              'Отключить',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: NLColors.bad,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await _showSetPinDialog(context, profile);
+            },
+            child: const Text(
+              'Сменить PIN',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: NLColors.accent,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Future<void> _showSetPinDialog(
+    BuildContext context,
+    UserProfile profile,
+  ) async {
+    final profileProvider = context.read<ProfileProvider>();
+    final pinInputFormatters = [
+      FilteringTextInputFormatter.digitsOnly,
+      LengthLimitingTextInputFormatter(4),
+    ];
+    final pinCtrl = TextEditingController();
+    final repeatCtrl = TextEditingController();
+    String? error;
+
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            backgroundColor: NLColors.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: const Text(
+              'Установить PIN',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: NLColors.ink,
+              ),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _ProfileTextField(
+                  label: 'PIN-код',
+                  controller: pinCtrl,
+                  keyboardType: TextInputType.number,
+                  obscureText: true,
+                  inputFormatters: pinInputFormatters,
+                ),
+                const SizedBox(height: 14),
+                _ProfileTextField(
+                  label: 'Повторите PIN',
+                  controller: repeatCtrl,
+                  keyboardType: TextInputType.number,
+                  obscureText: true,
+                  inputFormatters: pinInputFormatters,
+                ),
+                if (error != null) ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      error!,
+                      style: const TextStyle(fontSize: 12, color: NLColors.bad),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text(
+                  'Отмена',
+                  style: TextStyle(color: NLColors.muted),
+                ),
+              ),
+              TextButton(
+                onPressed: () async {
+                  final pin = pinCtrl.text;
+                  final repeat = repeatCtrl.text;
+                  if (pin.length != 4) {
+                    setDialogState(
+                      () => error = 'PIN должен состоять из 4 цифр',
+                    );
+                    return;
+                  }
+                  if (pin != repeat) {
+                    setDialogState(() => error = 'PIN-коды не совпадают');
+                    return;
+                  }
+                  await saveAppPin(pin);
+                  try {
+                    await profileProvider.saveProfile(
+                      profile.copyWith(pinEnabled: true, faceIdEnabled: false),
+                      throwOnError: true,
+                    );
+                    if (ctx.mounted) Navigator.of(ctx).pop();
+                  } catch (e) {
+                    await deleteAppPin();
+                    if (context.mounted) _showProfileSaveError(context, e);
+                  }
+                },
+                child: const Text(
+                  'Сохранить',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: NLColors.accent,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } finally {
+      pinCtrl.dispose();
+      repeatCtrl.dispose();
+    }
   }
 
   // ── Logout dialog ──────────────────────────────────────────────────────
@@ -615,6 +962,7 @@ class SettingsBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final profile = context.watch<ProfileProvider>().profile;
     final sp = context.watch<SettingsProvider>();
+    final settings = sp.settings;
     final reminderCount = sp.activeReminderCount;
 
     final avatarLetter = profile != null && profile.name.isNotEmpty
@@ -625,10 +973,10 @@ class SettingsBody extends StatelessWidget {
         ? _obsDate(profile.observationStartDate)
         : '';
     final baselineSub = profile != null
-        ? 'Усталость ${profile.baselineFatigue} · Боль ${profile.baselinePain} · Сон ${profile.baselineSleep.toStringAsFixed(1)}ч'
+        ? 'Усталость ${settings.formatSymptomValue(profile.baselineFatigue)} · Боль ${settings.formatSymptomValue(profile.baselinePain)} · Сон ${settings.formatSleepValue(profile.baselineSleep)}${settings.sleepUnit}'
         : '—';
     final personalDataSub = profile != null ? _personalDataSub(profile) : '—';
-    final faceIdOn = profile?.faceIdEnabled ?? false;
+    final pinIsActive = profile?.pinEnabled == true && hasAppPin();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: 110),
@@ -736,17 +1084,29 @@ class SettingsBody extends StatelessWidget {
                         sub: baselineSub,
                       ),
                     ),
-                    const NLListRow(
-                      icon: Icon(
-                        Icons.tune_rounded,
-                        size: 16,
-                        color: NLColors.ink,
-                      ),
-                      title: 'Шкалы и единицы',
-                      last: true,
-                      right: Text(
-                        '0–10 ›',
-                        style: TextStyle(fontSize: 14, color: NLColors.muted),
+                    GestureDetector(
+                      onTap: () => _showScalesAndUnitsDialog(context),
+                      child: NLListRow(
+                        icon: const Icon(
+                          Icons.tune_rounded,
+                          size: 16,
+                          color: NLColors.ink,
+                        ),
+                        title: 'Шкалы и единицы',
+                        last: true,
+                        right: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 170),
+                          child: Text(
+                            '${settings.scalesSummary} ›',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: NLColors.muted,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -755,43 +1115,19 @@ class SettingsBody extends StatelessWidget {
                 const NLSectionTitle('Приватность'),
                 NLList(
                   children: [
-                    const NLListRow(
-                      icon: Icon(
-                        Icons.lock_outline_rounded,
-                        size: 16,
-                        color: NLColors.accent,
-                      ),
-                      iconBg: NLColors.accentSoft,
-                      title: 'Защита приложения',
-                      sub: 'Face ID · PIN',
-                    ),
-                    NLListRow(
-                      icon: const Icon(
-                        Icons.face_retouching_natural,
-                        size: 16,
-                        color: NLColors.ink,
-                      ),
-                      title: 'Face ID при входе',
-                      right: GestureDetector(
-                        onTap: profile != null
-                            ? () async {
-                                try {
-                                  await context
-                                      .read<ProfileProvider>()
-                                      .saveProfile(
-                                        profile.copyWith(
-                                          faceIdEnabled: !faceIdOn,
-                                        ),
-                                        throwOnError: true,
-                                      );
-                                } catch (e) {
-                                  if (context.mounted) {
-                                    _showProfileSaveError(context, e);
-                                  }
-                                }
-                              }
-                            : null,
-                        child: NLToggle(on: faceIdOn),
+                    GestureDetector(
+                      onTap: profile != null
+                          ? () => _showAppProtectionDialog(context, profile)
+                          : null,
+                      child: NLListRow(
+                        icon: const Icon(
+                          Icons.lock_outline_rounded,
+                          size: 16,
+                          color: NLColors.accent,
+                        ),
+                        iconBg: NLColors.accentSoft,
+                        title: 'Защита приложения',
+                        sub: pinIsActive ? 'PIN включён' : 'PIN выключен',
                       ),
                     ),
                     GestureDetector(
@@ -935,12 +1271,16 @@ class _ProfileTextField extends StatelessWidget {
   final TextEditingController controller;
   final TextInputType? keyboardType;
   final String? hintText;
+  final List<TextInputFormatter>? inputFormatters;
+  final bool obscureText;
 
   const _ProfileTextField({
     required this.label,
     required this.controller,
     this.keyboardType,
     this.hintText,
+    this.inputFormatters,
+    this.obscureText = false,
   });
 
   @override
@@ -956,6 +1296,8 @@ class _ProfileTextField extends StatelessWidget {
         TextField(
           controller: controller,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
+          obscureText: obscureText,
           style: const TextStyle(color: NLColors.ink),
           decoration: InputDecoration(
             hintText: hintText,
@@ -1254,6 +1596,8 @@ class _BaselineSlider extends StatelessWidget {
   final double value;
   final double min;
   final double max;
+  final String unit;
+  final String? valueLabel;
   final ValueChanged<double> onChanged;
 
   const _BaselineSlider({
@@ -1261,6 +1605,8 @@ class _BaselineSlider extends StatelessWidget {
     required this.value,
     required this.min,
     required this.max,
+    this.unit = 'ч',
+    this.valueLabel,
     required this.onChanged,
   });
 
@@ -1281,7 +1627,7 @@ class _BaselineSlider extends StatelessWidget {
               ),
             ),
             Text(
-              '${value.toStringAsFixed(1)} ч',
+              valueLabel ?? '${value.toStringAsFixed(1)} $unit',
               style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,

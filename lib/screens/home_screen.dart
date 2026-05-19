@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../app_theme.dart';
 import '../widgets/nl_widgets.dart';
+import '../models/diary_entry.dart';
 import '../state/diary_provider.dart';
 import '../state/profile_provider.dart';
+import '../state/settings_provider.dart';
 import '../state/test_results_provider.dart';
-import '../models/test_result.dart';
+import '../services/analytics_service.dart';
 import '../services/supabase_service.dart';
 import 'diary_entry_screen.dart';
 import 'history_list_screen.dart';
@@ -14,6 +16,7 @@ import 'settings_screen.dart';
 import 'patient_care_screen.dart';
 import 'tapping_test_screen.dart';
 import 'reaction_test_screen.dart';
+import 'signals_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -36,7 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 3:
         return const SettingsBody();
       default:
-        return const _HomeTab();
+        return _HomeTab(onProfileTap: () => setState(() => _tab = 3));
     }
   }
 
@@ -45,6 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: NLColors.bg,
       body: Stack(
+        fit: StackFit.expand,
         children: [
           _body(),
           NLTabBar(
@@ -98,19 +102,25 @@ int? _calcConditionIndex(DiaryProvider diary) {
   final avgFatigue = diary.averageLastDays((e) => e.fatigue.toDouble(), 7);
   final avgPain = diary.averageLastDays((e) => e.pain.toDouble(), 7);
   final avgMood = diary.averageLastDays((e) => e.mood.toDouble(), 7);
+  final avgNumbness = diary.averageLastDays((e) => e.numbness.toDouble(), 7);
+  final avgCoordination = diary.averageLastDays(
+    (e) => e.coordination.toDouble(),
+    7,
+  );
+  final avgVision = diary.averageLastDays((e) => e.vision.toDouble(), 7);
+  final avgWeakness = diary.averageLastDays((e) => e.weakness.toDouble(), 7);
+  final avgStress = diary.averageLastDays((e) => e.stress.toDouble(), 7);
   if (avgFatigue == null || avgPain == null || avgMood == null) return null;
-  final fatigueNorm = avgFatigue / 10;
-  final painNorm = avgPain / 10;
-  final moodBadNorm = 1 - avgMood / 10;
-  final scoreBad = 0.4 * fatigueNorm + 0.3 * painNorm + 0.3 * moodBadNorm;
-  return ((1 - scoreBad) * 100).round();
-}
-
-class _Signal {
-  final String title;
-  final String body;
-  final NLSignalLevel level;
-  const _Signal(this.title, this.body, this.level);
+  return AnalyticsService.calculateCompositeIndexFromAverages(
+    fatigue: avgFatigue,
+    pain: avgPain,
+    mood: avgMood,
+    numbness: avgNumbness ?? 0,
+    coordination: avgCoordination ?? 0,
+    vision: avgVision ?? 0,
+    weakness: avgWeakness ?? 0,
+    stress: avgStress ?? 0,
+  );
 }
 
 class _PatientNotificationButton extends StatefulWidget {
@@ -178,75 +188,24 @@ class _PatientNotificationButtonState
   }
 }
 
-_Signal? _calcWarningSignal(DiaryProvider diary, TestResultsProvider tests) {
-  if (!diary.hasAnyData) return null;
-
-  // Fatigue >= 7 for 3 consecutive recent entries
-  final recent = diary.diaryEntriesSorted.take(3).toList();
-  if (recent.length >= 3 && recent.every((e) => e.fatigue >= 7)) {
-    return const _Signal(
-      'Возможный сигнал ухудшения',
-      'Высокая усталость ≥ 7 баллов несколько дней подряд. Следите за состоянием и при необходимости обсудите изменения с врачом.',
-      NLSignalLevel.warn,
-    );
-  }
-
-  // Average fatigue up >= 20% vs previous 7 days
-  final fatigueDelta = diary.percentChange((e) => e.fatigue.toDouble(), 7);
-  if (fatigueDelta != null && fatigueDelta >= 20) {
-    return const _Signal(
-      'Возможный сигнал ухудшения',
-      'Средняя усталость за 7 дней выросла. Следите за состоянием и при необходимости обсудите изменения с врачом.',
-      NLSignalLevel.warn,
-    );
-  }
-
-  // Average pain up >= 20% vs previous 7 days
-  final painDelta = diary.percentChange((e) => e.pain.toDouble(), 7);
-  if (painDelta != null && painDelta >= 20) {
-    return const _Signal(
-      'Возможный сигнал ухудшения',
-      'Средняя боль за 7 дней выросла. Следите за состоянием и при необходимости обсудите изменения с врачом.',
-      NLSignalLevel.warn,
-    );
-  }
-
-  // Reaction time increased >= 15% (compare newest half vs older half of last 4+ results)
-  final reactionResults = tests.results
-      .where((r) => r.type == TestType.reaction)
-      .toList();
-  if (reactionResults.length >= 4) {
-    final half = reactionResults.length ~/ 2;
-    final recentAvg =
-        reactionResults.take(half).fold<double>(0, (s, r) => s + r.value) /
-        half;
-    final prevAvg =
-        reactionResults
-            .skip(half)
-            .take(half)
-            .fold<double>(0, (s, r) => s + r.value) /
-        half;
-    if (prevAvg > 0 && (recentAvg - prevAvg) / prevAvg >= 0.15) {
-      return const _Signal(
-        'Возможный сигнал ухудшения',
-        'Время реакции увеличивается. Следите за состоянием и при необходимости обсудите изменения с врачом.',
-        NLSignalLevel.warn,
-      );
-    }
-  }
-
-  return null;
+NLSignalLevel _signalLevel(String severity) {
+  if (severity == 'high') return NLSignalLevel.bad;
+  if (severity == 'warn') return NLSignalLevel.warn;
+  return NLSignalLevel.info;
 }
 
 // ─── Home Tab ────────────────────────────────────────────────────────────────
 
 class _HomeTab extends StatelessWidget {
-  const _HomeTab();
+  final VoidCallback onProfileTap;
+
+  const _HomeTab({required this.onProfileTap});
 
   @override
   Widget build(BuildContext context) {
     final profile = context.watch<ProfileProvider>();
     final diary = context.watch<DiaryProvider>();
+    final settings = context.watch<SettingsProvider>().settings;
     final tests = context.watch<TestResultsProvider>();
 
     final now = DateTime.now();
@@ -266,7 +225,11 @@ class _HomeTab extends StatelessWidget {
     final sleepDelta = diary.percentChange((e) => e.sleepHours, 7);
 
     final conditionIndex = _calcConditionIndex(diary);
-    final signal = _calcWarningSignal(diary, tests);
+    final signals = AnalyticsService.generateSignals(
+      diary.diaryEntriesSorted,
+      tests.results,
+    );
+    final signal = signals.isEmpty ? null : signals.first;
 
     final tapping = tests.latestTappingResult;
     final reaction = tests.latestReactionResult;
@@ -285,7 +248,11 @@ class _HomeTab extends StatelessWidget {
                 const SizedBox(width: 8),
                 const _PatientNotificationButton(),
                 const SizedBox(width: 8),
-                NLAvatar(avatarLetter),
+                GestureDetector(
+                  onTap: onProfileTap,
+                  behavior: HitTestBehavior.opaque,
+                  child: NLAvatar(avatarLetter),
+                ),
               ],
             ),
             Padding(
@@ -304,9 +271,9 @@ class _HomeTab extends StatelessWidget {
                           child: NLTile(
                             label: 'Усталость',
                             value: avgFatigue != null
-                                ? avgFatigue.toStringAsFixed(1)
+                                ? settings.formatSymptomValue(avgFatigue)
                                 : '-',
-                            unit: '/10',
+                            unit: settings.symptomScaleSuffix,
                             badge: fatigueDelta != null
                                 ? NLStat(delta: fatigueDelta.round())
                                 : null,
@@ -317,9 +284,9 @@ class _HomeTab extends StatelessWidget {
                           child: NLTile(
                             label: 'Боль',
                             value: avgPain != null
-                                ? avgPain.toStringAsFixed(1)
+                                ? settings.formatSymptomValue(avgPain)
                                 : '-',
-                            unit: '/10',
+                            unit: settings.symptomScaleSuffix,
                             badge: painDelta != null
                                 ? NLStat(delta: painDelta.round())
                                 : null,
@@ -334,9 +301,9 @@ class _HomeTab extends StatelessWidget {
                           child: NLTile(
                             label: 'Настроение',
                             value: avgMood != null
-                                ? avgMood.toStringAsFixed(1)
+                                ? settings.formatSymptomValue(avgMood)
                                 : '-',
-                            unit: '/10',
+                            unit: settings.symptomScaleSuffix,
                             // negate: mood increase is good, NLStat treats positive as bad
                             badge: moodDelta != null
                                 ? NLStat(delta: (-moodDelta).round())
@@ -348,9 +315,9 @@ class _HomeTab extends StatelessWidget {
                           child: NLTile(
                             label: 'Сон',
                             value: avgSleep != null
-                                ? avgSleep.toStringAsFixed(1)
+                                ? settings.formatSleepValue(avgSleep)
                                 : '-',
-                            unit: 'ч',
+                            unit: settings.sleepUnit,
                             // negate: sleep increase is good
                             badge: sleepDelta != null
                                 ? NLStat(delta: (-sleepDelta).round())
@@ -364,12 +331,28 @@ class _HomeTab extends StatelessWidget {
                       _ConditionIndexCard(index: conditionIndex),
                     ],
                   ],
-                  const NLSectionTitle('Сигнал', action: 'Все →'),
+                  NLSectionTitle(
+                    'Сигнал',
+                    action: 'Все →',
+                    onActionTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const SignalsScreen()),
+                    ),
+                  ),
                   signal != null
                       ? NLSignalRow(
                           title: signal.title,
-                          body: signal.body,
-                          level: signal.level,
+                          body: signal.description,
+                          level: _signalLevel(signal.severity),
+                          trailing: const Icon(
+                            Icons.chevron_right_rounded,
+                            color: NLColors.muted,
+                            size: 20,
+                          ),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const SignalsScreen(),
+                            ),
+                          ),
                         )
                       : NLSignalRow(
                           title: 'Активных сигналов нет',
@@ -377,6 +360,16 @@ class _HomeTab extends StatelessWidget {
                               ? 'Продолжайте вести дневник для отслеживания изменений.'
                               : 'Создайте первую запись дневника, чтобы начать мониторинг.',
                           level: NLSignalLevel.info,
+                          trailing: const Icon(
+                            Icons.chevron_right_rounded,
+                            color: NLColors.muted,
+                            size: 20,
+                          ),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const SignalsScreen(),
+                            ),
+                          ),
                         ),
                   const NLSectionTitle('Врач и лечение'),
                   const PatientCarePreviewCard(),
@@ -398,7 +391,7 @@ class _HomeTab extends StatelessWidget {
                           iconBg: NLColors.accentSoft,
                           title: 'Таппинг-тест',
                           sub: tapping != null
-                              ? 'Последний: ${tapping.value.toStringAsFixed(1)} уд/с'
+                              ? 'Последний: ${tapping.value.toStringAsFixed(1)} ${settings.tappingUnit}'
                               : 'Моторика · 10 секунд',
                           right: const Icon(
                             Icons.chevron_right_rounded,
@@ -487,7 +480,9 @@ class _TodayCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Усталость ${entry.fatigue} · Боль ${entry.pain} · Настроение ${entry.mood}',
+                      'Усталость ${entry.fatigue} · Боль ${entry.pain} · РС ${_maxMsSymptom(entry)} · Стресс ${entry.stress}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 13,
                         color: NLColors.muted,
@@ -591,6 +586,13 @@ class _TodayCard extends StatelessWidget {
     );
   }
 }
+
+int _maxMsSymptom(DiaryEntry entry) => [
+  entry.numbness,
+  entry.coordination,
+  entry.vision,
+  entry.weakness,
+].reduce((a, b) => a > b ? a : b);
 
 // ─── Condition Index Card ─────────────────────────────────────────────────────
 

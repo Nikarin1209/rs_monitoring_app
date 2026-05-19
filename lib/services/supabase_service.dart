@@ -271,7 +271,7 @@ class SupabaseService {
         .or(
           'and(sender_id.eq.$userId,receiver_id.eq.$otherUserId),and(sender_id.eq.$otherUserId,receiver_id.eq.$userId)',
         )
-        .order('created_at');
+        .order('created_at', ascending: true);
     return (data as List)
         .map((row) => _chatMessageFromRow(row as Map<String, dynamic>))
         .toList();
@@ -401,6 +401,11 @@ class SupabaseService {
         fatigue: m['fatigue'] as int,
         pain: m['pain'] as int,
         mood: m['mood'] as int,
+        numbness: m['numbness'] as int? ?? 0,
+        coordination: m['coordination'] as int? ?? 0,
+        vision: m['vision'] as int? ?? 0,
+        weakness: m['weakness'] as int? ?? 0,
+        stress: m['stress'] as int? ?? 0,
         sleepHours: (m['sleep_hours'] as num).toDouble(),
         note: m['note'] as String? ?? '',
         flareFlag: m['flare_flag'] as bool? ?? false,
@@ -416,6 +421,11 @@ class SupabaseService {
       'fatigue': entry.fatigue,
       'pain': entry.pain,
       'mood': entry.mood,
+      'numbness': entry.numbness,
+      'coordination': entry.coordination,
+      'vision': entry.vision,
+      'weakness': entry.weakness,
+      'stress': entry.stress,
       'sleep_hours': entry.sleepHours,
       'note': entry.note,
       'flare_flag': entry.flareFlag,
@@ -430,6 +440,11 @@ class SupabaseService {
           'fatigue': entry.fatigue,
           'pain': entry.pain,
           'mood': entry.mood,
+          'numbness': entry.numbness,
+          'coordination': entry.coordination,
+          'vision': entry.vision,
+          'weakness': entry.weakness,
+          'stress': entry.stress,
           'sleep_hours': entry.sleepHours,
           'note': entry.note,
           'flare_flag': entry.flareFlag,
@@ -516,6 +531,12 @@ class SupabaseService {
       reactionReminderTime:
           data['reaction_reminder_time'] as String? ?? '11:00',
       notificationsEnabled: data['notifications_enabled'] as bool? ?? true,
+      symptomScaleMax: AppSettings.fromJson({
+        'symptomScaleMax': data['symptom_scale_max'],
+      }).symptomScaleMax,
+      symptomScaleUnit: data['symptom_scale_unit'] as String? ?? 'баллов',
+      sleepUnit: data['sleep_unit'] as String? ?? 'ч',
+      tappingUnit: data['tapping_unit'] as String? ?? 'уд/с',
     );
   }
 
@@ -532,6 +553,26 @@ class SupabaseService {
       'tapping_reminder_time': settings.tappingReminderTime,
       'reaction_reminder_time': settings.reactionReminderTime,
       'notifications_enabled': settings.notificationsEnabled,
+      'symptom_scale_max': settings.symptomScaleMax,
+      'symptom_scale_unit': settings.symptomScaleUnit,
+      'sleep_unit': settings.sleepUnit,
+      'tapping_unit': settings.tappingUnit,
+    }, onConflict: 'user_id');
+  }
+
+  static Future<void> upsertScaleUnitSettings(
+    String userId, {
+    required int symptomScaleMax,
+    required String symptomScaleUnit,
+    required String sleepUnit,
+    required String tappingUnit,
+  }) async {
+    await _client.from('app_settings').upsert({
+      'user_id': userId,
+      'symptom_scale_max': symptomScaleMax,
+      'symptom_scale_unit': symptomScaleUnit,
+      'sleep_unit': sleepUnit,
+      'tapping_unit': tappingUnit,
     }, onConflict: 'user_id');
   }
 }

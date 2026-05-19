@@ -82,7 +82,7 @@ class _ChatScreenState extends State<ChatScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollCtrl.hasClients) return;
       _scrollCtrl.animateTo(
-        _scrollCtrl.position.maxScrollExtent,
+        _scrollCtrl.position.minScrollExtent,
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOut,
       );
@@ -125,18 +125,19 @@ class _ChatScreenState extends State<ChatScreen> {
                         style: const TextStyle(color: NLColors.bad),
                       ),
                     )
+                  : _messages.isEmpty
+                  ? const _EmptyChat()
                   : RefreshIndicator(
                       color: NLColors.accent,
                       onRefresh: _load,
                       child: ListView.builder(
                         controller: _scrollCtrl,
-                        padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
-                        itemCount: _messages.isEmpty ? 1 : _messages.length,
+                        reverse: true,
+                        padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
+                        itemCount: _messages.length,
                         itemBuilder: (context, index) {
-                          if (_messages.isEmpty) {
-                            return const _EmptyChat();
-                          }
-                          final message = _messages[index];
+                          final message =
+                              _messages[_messages.length - 1 - index];
                           final mine =
                               currentUserId != null &&
                               message.isMine(currentUserId);

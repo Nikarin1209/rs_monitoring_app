@@ -7,8 +7,10 @@ import '../state/profile_provider.dart';
 import '../state/diary_provider.dart';
 import '../state/test_results_provider.dart';
 import '../state/settings_provider.dart';
+import '../services/storage_service.dart';
 import 'doctor_home_screen.dart';
 import 'home_screen.dart';
+import 'lock_screen.dart';
 import 'sign_in_screen.dart';
 import 'sign_up_screen.dart';
 
@@ -50,11 +52,14 @@ class _SplashScreenState extends State<SplashScreen> {
         context.read<SettingsProvider>().clear();
       }
       if (!mounted) return;
+      final destination = profile?.isDoctor == true
+          ? const DoctorHomeScreen()
+          : const HomeScreen();
+      final shouldLock = profile?.pinEnabled == true && hasAppPin();
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => profile?.isDoctor == true
-              ? const DoctorHomeScreen()
-              : const HomeScreen(),
+          builder: (_) =>
+              shouldLock ? LockScreen(destination: destination) : destination,
         ),
       );
       return;

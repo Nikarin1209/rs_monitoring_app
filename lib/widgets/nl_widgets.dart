@@ -29,8 +29,9 @@ class NLCard extends StatelessWidget {
 class NLSectionTitle extends StatelessWidget {
   final String label;
   final String? action;
+  final VoidCallback? onActionTap;
 
-  const NLSectionTitle(this.label, {super.key, this.action});
+  const NLSectionTitle(this.label, {super.key, this.action, this.onActionTap});
 
   @override
   Widget build(BuildContext context) {
@@ -41,12 +42,31 @@ class NLSectionTitle extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.baseline,
         textBaseline: TextBaseline.alphabetic,
         children: [
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w600, color: NLColors.muted,
-                  letterSpacing: 1.1)),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: NLColors.muted,
+              letterSpacing: 1.1,
+            ),
+          ),
           if (action != null)
-            Text(action!, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: NLColors.accent)),
+            GestureDetector(
+              onTap: onActionTap,
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Text(
+                  action!,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: NLColors.accent,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -61,7 +81,14 @@ class NLButton extends StatelessWidget {
   final bool full;
   final Widget? icon;
 
-  const NLButton({super.key, required this.label, this.onTap, this.primary = true, this.full = false, this.icon});
+  const NLButton({
+    super.key,
+    required this.label,
+    this.onTap,
+    this.primary = true,
+    this.full = false,
+    this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -72,13 +99,24 @@ class NLButton extends StatelessWidget {
       child: Container(
         height: 52,
         padding: const EdgeInsets.symmetric(horizontal: 22),
-        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.all(NLRadius.pill)),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.all(NLRadius.pill),
+        ),
         child: Row(
           mainAxisSize: full ? MainAxisSize.max : MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (icon != null) ...[icon!, const SizedBox(width: 8)],
-            Text(label, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: fg, letterSpacing: -0.2)),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: fg,
+                letterSpacing: -0.2,
+              ),
+            ),
           ],
         ),
       ),
@@ -102,7 +140,14 @@ class NLGhostButton extends StatelessWidget {
         height: 52,
         width: double.infinity,
         alignment: Alignment.center,
-        child: Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: NLColors.accent)),
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: NLColors.accent,
+          ),
+        ),
       ),
     );
   }
@@ -116,30 +161,44 @@ class NLInput extends StatelessWidget {
   final Widget? trailing;
   final bool readOnly;
 
-  const NLInput({super.key, this.placeholder, this.initialValue, this.obscure = false, this.trailing, this.readOnly = false});
+  const NLInput({
+    super.key,
+    this.placeholder,
+    this.initialValue,
+    this.obscure = false,
+    this.trailing,
+    this.readOnly = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: 52,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(color: NLColors.surface2, borderRadius: BorderRadius.all(NLRadius.md)),
-      child: Row(children: [
-        Expanded(
-          child: TextField(
-            controller: initialValue != null ? TextEditingController(text: initialValue) : null,
-            obscureText: obscure,
-            readOnly: readOnly,
-            decoration: InputDecoration(
-              hintText: placeholder,
-              hintStyle: const TextStyle(color: NLColors.muted),
-              border: InputBorder.none,
+      decoration: BoxDecoration(
+        color: NLColors.surface2,
+        borderRadius: BorderRadius.all(NLRadius.md),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: initialValue != null
+                  ? TextEditingController(text: initialValue)
+                  : null,
+              obscureText: obscure,
+              readOnly: readOnly,
+              decoration: InputDecoration(
+                hintText: placeholder,
+                hintStyle: const TextStyle(color: NLColors.muted),
+                border: InputBorder.none,
+              ),
+              style: const TextStyle(fontSize: 16, color: NLColors.ink),
             ),
-            style: const TextStyle(fontSize: 16, color: NLColors.ink),
           ),
-        ),
-        ?trailing,
-      ]),
+          ?trailing,
+        ],
+      ),
     );
   }
 }
@@ -153,8 +212,15 @@ class NLLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
-      child: Text(text.toUpperCase(),
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: NLColors.muted, letterSpacing: 0.9)),
+      child: Text(
+        text.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: NLColors.muted,
+          letterSpacing: 0.9,
+        ),
+      ),
     );
   }
 }
@@ -184,7 +250,13 @@ class NLToggle extends StatelessWidget {
             decoration: const BoxDecoration(
               color: Colors.white,
               shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: Color(0x26000000), blurRadius: 4, offset: Offset(0, 2))],
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0x26000000),
+                  blurRadius: 4,
+                  offset: Offset(0, 2),
+                ),
+              ],
             ),
           ),
         ),
@@ -199,13 +271,21 @@ class NLSegmented extends StatelessWidget {
   final String active;
   final ValueChanged<String>? onChange;
 
-  const NLSegmented({super.key, required this.items, required this.active, this.onChange});
+  const NLSegmented({
+    super.key,
+    required this.items,
+    required this.active,
+    this.onChange,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: NLColors.surface2, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: NLColors.surface2,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Row(
         children: items.map((item) {
           final isActive = item == active;
@@ -218,14 +298,25 @@ class NLSegmented extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: isActive ? NLColors.surface : Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
-                  boxShadow: isActive ? [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 2, offset: const Offset(0, 1))] : null,
+                  boxShadow: isActive
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.06),
+                            blurRadius: 2,
+                            offset: const Offset(0, 1),
+                          ),
+                        ]
+                      : null,
                 ),
                 alignment: Alignment.center,
-                child: Text(item,
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: isActive ? NLColors.ink : NLColors.muted)),
+                child: Text(
+                  item,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isActive ? NLColors.ink : NLColors.muted,
+                  ),
+                ),
               ),
             ),
           );
@@ -255,11 +346,24 @@ class NLTopBar extends StatelessWidget {
             Expanded(
               child: Center(
                 child: title != null
-                    ? Text(title!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: -0.2, color: NLColors.ink))
+                    ? Text(
+                        title!,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.2,
+                          color: NLColors.ink,
+                        ),
+                      )
                     : const SizedBox(),
               ),
             ),
-            SizedBox(width: 44, child: trailing != null ? Align(alignment: Alignment.centerRight, child: trailing!) : null),
+            SizedBox(
+              width: 44,
+              child: trailing != null
+                  ? Align(alignment: Alignment.centerRight, child: trailing!)
+                  : null,
+            ),
           ],
         ),
       ),
@@ -279,8 +383,15 @@ class NLBackBtn extends StatelessWidget {
       child: Container(
         width: 36,
         height: 36,
-        decoration: const BoxDecoration(color: NLColors.surface2, shape: BoxShape.circle),
-        child: const Icon(Icons.chevron_left_rounded, color: NLColors.ink, size: 22),
+        decoration: const BoxDecoration(
+          color: NLColors.surface2,
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(
+          Icons.chevron_left_rounded,
+          color: NLColors.ink,
+          size: 22,
+        ),
       ),
     );
   }
@@ -292,7 +403,12 @@ class NLHeader extends StatelessWidget {
   final String title;
   final List<Widget> actions;
 
-  const NLHeader({super.key, required this.greeting, required this.title, this.actions = const []});
+  const NLHeader({
+    super.key,
+    required this.greeting,
+    required this.title,
+    this.actions = const [],
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -305,11 +421,25 @@ class NLHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(greeting.toUpperCase(),
-                    style: const TextStyle(fontSize: 13, color: NLColors.muted, fontWeight: FontWeight.w500, letterSpacing: 0.8)),
+                Text(
+                  greeting.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: NLColors.muted,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.8,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text(title,
-                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700, letterSpacing: -0.6, color: NLColors.ink)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.6,
+                    color: NLColors.ink,
+                  ),
+                ),
               ],
             ),
           ),
@@ -339,7 +469,14 @@ class NLAvatar extends StatelessWidget {
         ),
       ),
       alignment: Alignment.center,
-      child: Text(letter, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15)),
+      child: Text(
+        letter,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+          fontSize: 15,
+        ),
+      ),
     );
   }
 }
@@ -380,14 +517,31 @@ class NLStat extends StatelessWidget {
   Widget build(BuildContext context) {
     final isUp = delta > 0;
     final isDown = delta < 0;
-    final bg = isUp ? NLColors.roseSoft : isDown ? NLColors.mintSoft : NLColors.surface2;
-    final fg = isUp ? NLColors.bad : isDown ? NLColors.good : NLColors.muted;
-    final arrow = isUp ? '↑' : isDown ? '↓' : '–';
+    final bg = isUp
+        ? NLColors.roseSoft
+        : isDown
+        ? NLColors.mintSoft
+        : NLColors.surface2;
+    final fg = isUp
+        ? NLColors.bad
+        : isDown
+        ? NLColors.good
+        : NLColors.muted;
+    final arrow = isUp
+        ? '↑'
+        : isDown
+        ? '↓'
+        : '–';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.all(NLRadius.pill)),
-      child: Text('$arrow ${delta.abs()}$unit',
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: fg)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.all(NLRadius.pill),
+      ),
+      child: Text(
+        '$arrow ${delta.abs()}$unit',
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: fg),
+      ),
     );
   }
 }
@@ -416,7 +570,9 @@ class NLListRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        border: last ? null : Border(bottom: BorderSide(color: NLColors.line2, width: 1)),
+        border: last
+            ? null
+            : Border(bottom: BorderSide(color: NLColors.line2, width: 1)),
       ),
       child: Row(
         children: [
@@ -424,7 +580,10 @@ class NLListRow extends StatelessWidget {
             Container(
               width: 36,
               height: 36,
-              decoration: BoxDecoration(color: iconBg ?? NLColors.surface2, borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(
+                color: iconBg ?? NLColors.surface2,
+                borderRadius: BorderRadius.circular(10),
+              ),
               alignment: Alignment.center,
               child: icon,
             ),
@@ -434,10 +593,20 @@ class NLListRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: NLColors.ink)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: NLColors.ink,
+                  ),
+                ),
                 if (sub != null) ...[
                   const SizedBox(height: 2),
-                  Text(sub!, style: const TextStyle(fontSize: 12, color: NLColors.muted)),
+                  Text(
+                    sub!,
+                    style: const TextStyle(fontSize: 12, color: NLColors.muted),
+                  ),
                 ],
               ],
             ),
@@ -445,7 +614,11 @@ class NLListRow extends StatelessWidget {
           if (right != null)
             right!
           else
-            const Icon(Icons.chevron_right_rounded, color: NLColors.muted, size: 20),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: NLColors.muted,
+              size: 20,
+            ),
         ],
       ),
     );
@@ -478,7 +651,13 @@ class NLTile extends StatelessWidget {
   final String? unit;
   final Widget? badge;
 
-  const NLTile({super.key, required this.label, required this.value, this.unit, this.badge});
+  const NLTile({
+    super.key,
+    required this.label,
+    required this.value,
+    this.unit,
+    this.badge,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -492,18 +671,39 @@ class NLTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label.toUpperCase(),
-              style: const TextStyle(fontSize: 12, color: NLColors.muted, fontWeight: FontWeight.w600, letterSpacing: 0.8)),
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 12,
+              color: NLColors.muted,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.8,
+            ),
+          ),
           const SizedBox(height: 6),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(value,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: NLColors.ink)),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                  color: NLColors.ink,
+                ),
+              ),
               if (unit != null) ...[
                 const SizedBox(width: 3),
-                Text(unit!, style: const TextStyle(fontSize: 13, color: NLColors.muted, fontWeight: FontWeight.w500)),
+                Text(
+                  unit!,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: NLColors.muted,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ],
             ],
           ),
@@ -520,36 +720,77 @@ class NLSignalRow extends StatelessWidget {
   final String body;
   final NLSignalLevel level;
   final Widget? trailing;
+  final VoidCallback? onTap;
 
-  const NLSignalRow({super.key, required this.title, required this.body, this.level = NLSignalLevel.bad, this.trailing});
+  const NLSignalRow({
+    super.key,
+    required this.title,
+    required this.body,
+    this.level = NLSignalLevel.bad,
+    this.trailing,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final bg = level == NLSignalLevel.bad ? NLColors.roseSoft : level == NLSignalLevel.warn ? NLColors.peachSoft : NLColors.skySoft;
-    final dot = level == NLSignalLevel.bad ? NLColors.bad : level == NLSignalLevel.warn ? NLColors.warn : NLColors.accent;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.all(NLRadius.md)),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 6, right: 12),
-            child: Container(width: 8, height: 8, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: NLColors.ink)),
-                const SizedBox(height: 2),
-                Text(body, style: const TextStyle(fontSize: 12, color: NLColors.ink2, height: 1.45)),
-              ],
+    final bg = level == NLSignalLevel.bad
+        ? NLColors.roseSoft
+        : level == NLSignalLevel.warn
+        ? NLColors.peachSoft
+        : NLColors.skySoft;
+    final dot = level == NLSignalLevel.bad
+        ? NLColors.bad
+        : level == NLSignalLevel.warn
+        ? NLColors.warn
+        : NLColors.accent;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.all(NLRadius.md),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 6, right: 12),
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+              ),
             ),
-          ),
-          ?trailing,
-        ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: NLColors.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    body,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: NLColors.ink2,
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ?trailing,
+          ],
+        ),
       ),
     );
   }
@@ -610,7 +851,13 @@ class _RingPainter extends CustomPainter {
   final Color color;
   final Color trackColor;
 
-  _RingPainter({required this.value, required this.max, required this.stroke, required this.color, required this.trackColor});
+  _RingPainter({
+    required this.value,
+    required this.max,
+    required this.stroke,
+    required this.color,
+    required this.trackColor,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -652,6 +899,8 @@ class NLChart extends StatelessWidget {
   final Color color;
   final Color tinted;
   final List<String>? xLabels;
+  final double minY;
+  final double maxY;
 
   const NLChart({
     super.key,
@@ -661,6 +910,8 @@ class NLChart extends StatelessWidget {
     this.color = NLColors.accent,
     this.tinted = NLColors.accentSoft,
     this.xLabels,
+    this.minY = 0,
+    this.maxY = 10,
   });
 
   @override
@@ -671,14 +922,28 @@ class NLChart extends StatelessWidget {
           height: height,
           child: CustomPaint(
             size: Size.fromHeight(height),
-            painter: _ChartPainter(data: data, threshold: threshold, color: color, tinted: tinted),
+            painter: _ChartPainter(
+              data: data,
+              threshold: threshold,
+              color: color,
+              tinted: tinted,
+              minY: minY,
+              maxY: maxY,
+            ),
           ),
         ),
         if (xLabels != null) ...[
           const SizedBox(height: 6),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: xLabels!.map((l) => Text(l, style: const TextStyle(fontSize: 11, color: NLColors.muted))).toList(),
+            children: xLabels!
+                .map(
+                  (l) => Text(
+                    l,
+                    style: const TextStyle(fontSize: 11, color: NLColors.muted),
+                  ),
+                )
+                .toList(),
           ),
         ],
       ],
@@ -691,18 +956,28 @@ class _ChartPainter extends CustomPainter {
   final double? threshold;
   final Color color;
   final Color tinted;
+  final double minY;
+  final double maxY;
 
-  _ChartPainter({required this.data, this.threshold, required this.color, required this.tinted});
+  _ChartPainter({
+    required this.data,
+    this.threshold,
+    required this.color,
+    required this.tinted,
+    required this.minY,
+    required this.maxY,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (data.isEmpty) return;
-    const double max = 10, min = 0;
+    if (data.isEmpty || maxY <= minY) return;
     const double padX = 8, padY = 14;
     final n = data.length;
+    if (n < 2) return;
 
     double xs(int i) => padX + (i * (size.width - padX * 2)) / (n - 1);
-    double ys(double v) => padY + ((max - v) / (max - min)) * (size.height - padY * 2);
+    double ys(double v) =>
+        padY + ((maxY - v) / (maxY - minY)) * (size.height - padY * 2);
 
     // Grid lines
     final gridPaint = Paint()
@@ -711,7 +986,12 @@ class _ChartPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
     for (final t in [0.25, 0.5, 0.75]) {
       final y = padY + t * (size.height - padY * 2);
-      _drawDashed(canvas, Offset(padX, y), Offset(size.width - padX, y), gridPaint);
+      _drawDashed(
+        canvas,
+        Offset(padX, y),
+        Offset(size.width - padX, y),
+        gridPaint,
+      );
     }
 
     // Threshold
@@ -720,16 +1000,28 @@ class _ChartPainter extends CustomPainter {
         ..color = NLColors.bad.withValues(alpha: 0.7)
         ..strokeWidth = 1
         ..style = PaintingStyle.stroke;
-      _drawDashed(canvas, Offset(padX, ys(threshold!)), Offset(size.width - padX, ys(threshold!)), thPaint);
+      _drawDashed(
+        canvas,
+        Offset(padX, ys(threshold!)),
+        Offset(size.width - padX, ys(threshold!)),
+        thPaint,
+      );
 
       final tp = TextPainter(
         text: TextSpan(
           text: 'порог ${threshold!.round()}',
-          style: TextStyle(fontSize: 9, color: NLColors.bad, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            fontSize: 9,
+            color: NLColors.bad,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
-      tp.paint(canvas, Offset(size.width - padX - tp.width, ys(threshold!) - 14));
+      tp.paint(
+        canvas,
+        Offset(size.width - padX - tp.width, ys(threshold!) - 14),
+      );
     }
 
     // Area path
@@ -749,7 +1041,12 @@ class _ChartPainter extends CustomPainter {
     path.lineTo(xs(0), size.height - padY);
     path.close();
 
-    canvas.drawPath(path, Paint()..color = tinted.withValues(alpha: 0.7)..style = PaintingStyle.fill);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = tinted.withValues(alpha: 0.7)
+        ..style = PaintingStyle.fill,
+    );
 
     final linePaint = Paint()
       ..color = color
@@ -761,10 +1058,21 @@ class _ChartPainter extends CustomPainter {
 
     // Dots
     for (int i = 0; i < n; i++) {
-      canvas.drawCircle(Offset(xs(i), ys(data[i])), 3.5,
-          Paint()..color = Colors.white..style = PaintingStyle.fill);
-      canvas.drawCircle(Offset(xs(i), ys(data[i])), 3.5,
-          Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = 2);
+      canvas.drawCircle(
+        Offset(xs(i), ys(data[i])),
+        3.5,
+        Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.fill,
+      );
+      canvas.drawCircle(
+        Offset(xs(i), ys(data[i])),
+        3.5,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      );
     }
   }
 
@@ -778,14 +1086,23 @@ class _ChartPainter extends CustomPainter {
       final s = i * (dashLength + gapLength);
       canvas.drawLine(
         Offset(start.dx + ux * s, start.dy + uy * s),
-        Offset(start.dx + ux * (s + dashLength), start.dy + uy * (s + dashLength)),
+        Offset(
+          start.dx + ux * (s + dashLength),
+          start.dy + uy * (s + dashLength),
+        ),
         paint,
       );
     }
   }
 
   @override
-  bool shouldRepaint(covariant _ChartPainter old) => old.data != data;
+  bool shouldRepaint(covariant _ChartPainter old) =>
+      old.data != data ||
+      old.threshold != threshold ||
+      old.color != color ||
+      old.tinted != tinted ||
+      old.minY != minY ||
+      old.maxY != maxY;
 }
 
 // ──────────────────────────── NL Scale (bar visualization 0–10)
@@ -796,6 +1113,8 @@ class NLScale extends StatelessWidget {
   final String? leftLabel;
   final String? rightLabel;
   final String? descriptor;
+  final String? valueLabel;
+  final String? maxLabel;
   // When provided, each bar tap calls onChanged(i). Null → read-only display.
   final ValueChanged<int>? onChanged;
 
@@ -807,6 +1126,8 @@ class NLScale extends StatelessWidget {
     this.leftLabel,
     this.rightLabel,
     this.descriptor,
+    this.valueLabel,
+    this.maxLabel,
     this.onChanged,
   });
 
@@ -819,15 +1140,44 @@ class NLScale extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.baseline,
           textBaseline: TextBaseline.alphabetic,
           children: [
-            Text('$value', style: TextStyle(fontSize: 38, fontWeight: FontWeight.w700, letterSpacing: -1.1, color: color, height: 1)),
+            Text(
+              valueLabel ?? '$value',
+              style: TextStyle(
+                fontSize: 38,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -1.1,
+                color: color,
+                height: 1,
+              ),
+            ),
             const SizedBox(width: 8),
-            const Text('/ 10', style: TextStyle(fontSize: 14, color: NLColors.muted, fontWeight: FontWeight.w500)),
+            Text(
+              '/ ${maxLabel ?? '10'}',
+              style: const TextStyle(
+                fontSize: 14,
+                color: NLColors.muted,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
             const Spacer(),
             if (descriptor != null)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.all(NLRadius.pill)),
-                child: Text(descriptor!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: tint,
+                  borderRadius: BorderRadius.all(NLRadius.pill),
+                ),
+                child: Text(
+                  descriptor!,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
+                ),
               ),
           ],
         ),
@@ -847,9 +1197,15 @@ class NLScale extends StatelessWidget {
                   child: Container(
                     height: h,
                     decoration: BoxDecoration(
-                      color: isActive ? color : isPast ? tint : NLColors.surface2,
+                      color: isActive
+                          ? color
+                          : isPast
+                          ? tint
+                          : NLColors.surface2,
                       borderRadius: BorderRadius.circular(3),
-                      border: isActive ? Border.all(color: color, width: 2) : null,
+                      border: isActive
+                          ? Border.all(color: color, width: 2)
+                          : null,
                     ),
                   ),
                 ),
@@ -861,8 +1217,14 @@ class NLScale extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(leftLabel ?? '', style: const TextStyle(fontSize: 11, color: NLColors.muted)),
-            Text(rightLabel ?? '', style: const TextStyle(fontSize: 11, color: NLColors.muted)),
+            Text(
+              leftLabel ?? '',
+              style: const TextStyle(fontSize: 11, color: NLColors.muted),
+            ),
+            Text(
+              rightLabel ?? '',
+              style: const TextStyle(fontSize: 11, color: NLColors.muted),
+            ),
           ],
         ),
       ],
@@ -876,7 +1238,12 @@ class NLSlider extends StatelessWidget {
   final double max;
   final Color color;
 
-  const NLSlider({super.key, required this.value, this.max = 10, this.color = NLColors.accent});
+  const NLSlider({
+    super.key,
+    required this.value,
+    this.max = 10,
+    this.color = NLColors.accent,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -890,10 +1257,22 @@ class NLSlider extends StatelessWidget {
               child: Stack(
                 alignment: Alignment.centerLeft,
                 children: [
-                  Container(height: 6, decoration: BoxDecoration(color: NLColors.surface2, borderRadius: BorderRadius.all(NLRadius.pill))),
+                  Container(
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: NLColors.surface2,
+                      borderRadius: BorderRadius.all(NLRadius.pill),
+                    ),
+                  ),
                   FractionallySizedBox(
                     widthFactor: pct,
-                    child: Container(height: 6, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.all(NLRadius.pill))),
+                    child: Container(
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.all(NLRadius.pill),
+                      ),
+                    ),
                   ),
                   Positioned(
                     left: (constraints.maxWidth - 24) * pct,
@@ -904,7 +1283,13 @@ class NLSlider extends StatelessWidget {
                         color: Colors.white,
                         shape: BoxShape.circle,
                         border: Border.all(color: color, width: 2),
-                        boxShadow: const [BoxShadow(color: Color(0x1F000000), blurRadius: 6, offset: Offset(0, 2))],
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x1F000000),
+                            blurRadius: 6,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -914,9 +1299,18 @@ class NLSlider extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: const [
-                Text('0', style: TextStyle(fontSize: 12, color: NLColors.muted)),
-                Text('5', style: TextStyle(fontSize: 12, color: NLColors.muted)),
-                Text('10', style: TextStyle(fontSize: 12, color: NLColors.muted)),
+                Text(
+                  '0',
+                  style: TextStyle(fontSize: 12, color: NLColors.muted),
+                ),
+                Text(
+                  '5',
+                  style: TextStyle(fontSize: 12, color: NLColors.muted),
+                ),
+                Text(
+                  '10',
+                  style: TextStyle(fontSize: 12, color: NLColors.muted),
+                ),
               ],
             ),
           ],
@@ -946,7 +1340,12 @@ class NLTabBar extends StatelessWidget {
   final VoidCallback? onFab;
   final ValueChanged<String>? onTabChanged;
 
-  const NLTabBar({super.key, required this.active, this.onFab, this.onTabChanged});
+  const NLTabBar({
+    super.key,
+    required this.active,
+    this.onFab,
+    this.onTabChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -967,7 +1366,13 @@ class NLTabBar extends StatelessWidget {
                   color: Colors.white.withValues(alpha: 0.78),
                   borderRadius: BorderRadius.all(NLRadius.pill),
                   border: Border.all(color: NLColors.line, width: 0.5),
-                  boxShadow: [BoxShadow(color: NLColors.ink.withValues(alpha: 0.06), blurRadius: 24, offset: const Offset(0, 8))],
+                  boxShadow: [
+                    BoxShadow(
+                      color: NLColors.ink.withValues(alpha: 0.06),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
                 child: Row(
                   children: _nlTabs.map((t) {
@@ -977,15 +1382,30 @@ class NLTabBar extends StatelessWidget {
                         onTap: () => onTabChanged?.call(t.key),
                         child: Container(
                           height: 44,
-                          decoration: BoxDecoration(borderRadius: BorderRadius.all(NLRadius.pill)),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.all(NLRadius.pill),
+                          ),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(t.icon, size: 22, color: isActive ? NLColors.accent : NLColors.muted),
+                              Icon(
+                                t.icon,
+                                size: 22,
+                                color: isActive
+                                    ? NLColors.accent
+                                    : NLColors.muted,
+                              ),
                               const SizedBox(height: 2),
-                              Text(t.label,
-                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
-                                      color: isActive ? NLColors.accent : NLColors.muted)),
+                              Text(
+                                t.label,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: isActive
+                                      ? NLColors.accent
+                                      : NLColors.muted,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -1004,9 +1424,19 @@ class NLTabBar extends StatelessWidget {
                 decoration: const BoxDecoration(
                   color: NLColors.ink,
                   shape: BoxShape.circle,
-                  boxShadow: [BoxShadow(color: Color(0x331F1B16), blurRadius: 24, offset: Offset(0, 10))],
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x331F1B16),
+                      blurRadius: 24,
+                      offset: Offset(0, 10),
+                    ),
+                  ],
                 ),
-                child: const Icon(Icons.add_rounded, color: Colors.white, size: 26),
+                child: const Icon(
+                  Icons.add_rounded,
+                  color: Colors.white,
+                  size: 26,
+                ),
               ),
             ),
           ],
@@ -1022,7 +1452,11 @@ class NLDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(height: 1, color: NLColors.line, margin: const EdgeInsets.symmetric(vertical: 12));
+    return Container(
+      height: 1,
+      color: NLColors.line,
+      margin: const EdgeInsets.symmetric(vertical: 12),
+    );
   }
 }
 
@@ -1040,7 +1474,13 @@ class NLCorrelationBar extends StatelessWidget {
         final leftStart = r < 0 ? half - fillWidth : half;
         return Stack(
           children: [
-            Container(height: 8, decoration: BoxDecoration(color: NLColors.surface2, borderRadius: BorderRadius.all(NLRadius.pill))),
+            Container(
+              height: 8,
+              decoration: BoxDecoration(
+                color: NLColors.surface2,
+                borderRadius: BorderRadius.all(NLRadius.pill),
+              ),
+            ),
             Positioned(
               left: half - 0.5,
               child: Container(width: 1, height: 8, color: NLColors.line),

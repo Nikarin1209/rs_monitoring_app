@@ -46,7 +46,7 @@ class SettingsProvider extends ChangeNotifier {
 
   // ─── Write ───────────────────────────────────────────────────────────────
 
-  Future<void> update(AppSettings settings) async {
+  Future<void> update(AppSettings settings, {bool throwOnError = false}) async {
     final userId = SupabaseService.currentUserId;
     if (userId == null) return;
     try {
@@ -55,6 +55,7 @@ class SettingsProvider extends ChangeNotifier {
       _error = null;
     } catch (e) {
       _error = 'Не удалось сохранить настройки';
+      if (throwOnError) rethrow;
     }
     notifyListeners();
   }
@@ -62,23 +63,55 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setNotificationsEnabled(bool value) =>
       update(_settings.copyWith(notificationsEnabled: value));
 
-  Future<void> setDiaryReminder({bool? enabled, String? time}) =>
-      update(_settings.copyWith(
-        diaryReminderEnabled: enabled,
-        diaryReminderTime: time,
-      ));
+  Future<void> setDiaryReminder({bool? enabled, String? time}) => update(
+    _settings.copyWith(diaryReminderEnabled: enabled, diaryReminderTime: time),
+  );
 
-  Future<void> setTappingReminder({bool? enabled, String? time}) =>
-      update(_settings.copyWith(
-        tappingReminderEnabled: enabled,
-        tappingReminderTime: time,
-      ));
+  Future<void> setTappingReminder({bool? enabled, String? time}) => update(
+    _settings.copyWith(
+      tappingReminderEnabled: enabled,
+      tappingReminderTime: time,
+    ),
+  );
 
-  Future<void> setReactionReminder({bool? enabled, String? time}) =>
-      update(_settings.copyWith(
-        reactionReminderEnabled: enabled,
-        reactionReminderTime: time,
-      ));
+  Future<void> setReactionReminder({bool? enabled, String? time}) => update(
+    _settings.copyWith(
+      reactionReminderEnabled: enabled,
+      reactionReminderTime: time,
+    ),
+  );
+
+  Future<void> setScalesAndUnits({
+    required int symptomScaleMax,
+    required String symptomScaleUnit,
+    required String sleepUnit,
+    required String tappingUnit,
+    bool throwOnError = false,
+  }) async {
+    final userId = SupabaseService.currentUserId;
+    if (userId == null) return;
+    final nextSettings = _settings.copyWith(
+      symptomScaleMax: symptomScaleMax,
+      symptomScaleUnit: symptomScaleUnit,
+      sleepUnit: sleepUnit,
+      tappingUnit: tappingUnit,
+    );
+    try {
+      await SupabaseService.upsertScaleUnitSettings(
+        userId,
+        symptomScaleMax: nextSettings.symptomScaleMax,
+        symptomScaleUnit: nextSettings.symptomScaleUnit,
+        sleepUnit: nextSettings.sleepUnit,
+        tappingUnit: nextSettings.tappingUnit,
+      );
+      _settings = nextSettings;
+      _error = null;
+    } catch (e) {
+      _error = 'Не удалось сохранить шкалы и единицы';
+      if (throwOnError) rethrow;
+    }
+    notifyListeners();
+  }
 
   Future<void> setFaceIdEnabled(bool value, ProfileSettingCallback onProfile) =>
       onProfile(value);

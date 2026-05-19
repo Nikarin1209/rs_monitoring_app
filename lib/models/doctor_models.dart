@@ -127,6 +127,27 @@ class DoctorPatientOverview {
         .toList(),
   );
 
+  double? averageMsSymptomBurden(int days) => _average(
+    diaryEntries
+        .where((entry) => _isWithinDays(entry.dateTime, days))
+        .map(
+          (entry) =>
+              (entry.numbness +
+                  entry.coordination +
+                  entry.vision +
+                  entry.weakness) /
+              4,
+        )
+        .toList(),
+  );
+
+  double? averageStress(int days) => _average(
+    diaryEntries
+        .where((entry) => _isWithinDays(entry.dateTime, days))
+        .map((entry) => entry.stress.toDouble())
+        .toList(),
+  );
+
   int get warningCount {
     var count = 0;
     final recent = diaryEntries.take(3).toList();
@@ -137,6 +158,10 @@ class DoctorPatientOverview {
     if (fatigue != null && fatigue >= 7) count++;
     final pain = averagePain(7);
     if (pain != null && pain >= 6) count++;
+    final msBurden = averageMsSymptomBurden(7);
+    if (msBurden != null && msBurden >= 6) count++;
+    final stress = averageStress(7);
+    if (stress != null && stress >= 7) count++;
     final latestReaction = latestReactionResult;
     if (latestReaction != null && latestReaction.value >= 650) count++;
     return count;

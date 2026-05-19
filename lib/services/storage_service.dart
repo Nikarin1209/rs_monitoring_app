@@ -15,6 +15,7 @@ const _boxSettings = 'app_settings';
 // Singleton keys for profile and settings (each has exactly one record)
 const _keyProfile = 'profile';
 const _keySettings = 'settings';
+const _keyAppPin = 'app_pin';
 
 const _uuid = Uuid();
 
@@ -56,20 +57,29 @@ DiaryEntry createDiaryEntry({
   required int fatigue,
   required int pain,
   required int mood,
+  int numbness = 0,
+  int coordination = 0,
+  int vision = 0,
+  int weakness = 0,
+  int stress = 0,
   required double sleepHours,
   String note = '',
   bool flareFlag = false,
-}) =>
-    DiaryEntry(
-      id: _uuid.v4(),
-      dateTime: dateTime,
-      fatigue: fatigue,
-      pain: pain,
-      mood: mood,
-      sleepHours: sleepHours,
-      note: note,
-      flareFlag: flareFlag,
-    );
+}) => DiaryEntry(
+  id: _uuid.v4(),
+  dateTime: dateTime,
+  fatigue: fatigue,
+  pain: pain,
+  mood: mood,
+  numbness: numbness,
+  coordination: coordination,
+  vision: vision,
+  weakness: weakness,
+  stress: stress,
+  sleepHours: sleepHours,
+  note: note,
+  flareFlag: flareFlag,
+);
 
 Future<void> addDiaryEntry(DiaryEntry entry) async {
   await Hive.box(_boxDiary).put(entry.id, jsonEncode(entry.toJson()));
@@ -78,7 +88,11 @@ Future<void> addDiaryEntry(DiaryEntry entry) async {
 List<DiaryEntry> getAllDiaryEntries() {
   final box = Hive.box(_boxDiary);
   final entries = box.values
-      .map((raw) => DiaryEntry.fromJson(jsonDecode(raw as String) as Map<String, dynamic>))
+      .map(
+        (raw) => DiaryEntry.fromJson(
+          jsonDecode(raw as String) as Map<String, dynamic>,
+        ),
+      )
       .toList();
   // Most recent first
   entries.sort((a, b) => b.dateTime.compareTo(a.dateTime));
@@ -127,16 +141,15 @@ TestResult createTestResult({
   required int durationSeconds,
   String? hand,
   String? metadataJson,
-}) =>
-    TestResult(
-      id: _uuid.v4(),
-      type: type,
-      dateTime: DateTime.now(),
-      value: value,
-      durationSeconds: durationSeconds,
-      hand: hand,
-      metadataJson: metadataJson,
-    );
+}) => TestResult(
+  id: _uuid.v4(),
+  type: type,
+  dateTime: DateTime.now(),
+  value: value,
+  durationSeconds: durationSeconds,
+  hand: hand,
+  metadataJson: metadataJson,
+);
 
 Future<void> addTestResult(TestResult result) async {
   await Hive.box(_boxTests).put(result.id, jsonEncode(result.toJson()));
@@ -145,7 +158,11 @@ Future<void> addTestResult(TestResult result) async {
 List<TestResult> getAllTestResults() {
   final box = Hive.box(_boxTests);
   final results = box.values
-      .map((raw) => TestResult.fromJson(jsonDecode(raw as String) as Map<String, dynamic>))
+      .map(
+        (raw) => TestResult.fromJson(
+          jsonDecode(raw as String) as Map<String, dynamic>,
+        ),
+      )
       .toList();
   results.sort((a, b) => b.dateTime.compareTo(a.dateTime));
   return results;
@@ -183,6 +200,26 @@ AppSettings getSettings() {
 }
 
 Future<void> updateSettings(AppSettings settings) => saveSettings(settings);
+
+// ─── App Lock ────────────────────────────────────────────────────────────────
+
+Future<void> saveAppPin(String pin) async {
+  await Hive.box(_boxSettings).put(_keyAppPin, pin);
+}
+
+String? getAppPin() {
+  final raw = Hive.box(_boxSettings).get(_keyAppPin) as String?;
+  if (raw == null || raw.length != 4) return null;
+  return raw;
+}
+
+bool hasAppPin() => getAppPin() != null;
+
+bool verifyAppPin(String pin) => getAppPin() == pin;
+
+Future<void> deleteAppPin() async {
+  await Hive.box(_boxSettings).delete(_keyAppPin);
+}
 
 // ─── General ──────────────────────────────────────────────────────────────────
 

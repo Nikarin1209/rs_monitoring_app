@@ -4,19 +4,49 @@ import '../app_theme.dart';
 import '../widgets/nl_widgets.dart';
 import '../models/diary_entry.dart';
 import '../state/diary_provider.dart';
+import '../state/settings_provider.dart';
 import 'history_calendar_screen.dart';
 import 'diary_entry_screen.dart';
 
 const _weekdayNames = [
-  '', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье',
+  '',
+  'Понедельник',
+  'Вторник',
+  'Среда',
+  'Четверг',
+  'Пятница',
+  'Суббота',
+  'Воскресенье',
 ];
 const _monthNames = [
-  '', 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
+  '',
+  'Январь',
+  'Февраль',
+  'Март',
+  'Апрель',
+  'Май',
+  'Июнь',
+  'Июль',
+  'Август',
+  'Сентябрь',
+  'Октябрь',
+  'Ноябрь',
+  'Декабрь',
 ];
 const _monthsShort = [
-  '', 'янв', 'фев', 'мар', 'апр', 'май', 'июн',
-  'июл', 'авг', 'сен', 'окт', 'ноя', 'дек',
+  '',
+  'янв',
+  'фев',
+  'мар',
+  'апр',
+  'май',
+  'июн',
+  'июл',
+  'авг',
+  'сен',
+  'окт',
+  'ноя',
+  'дек',
 ];
 
 class HistoryListScreen extends StatelessWidget {
@@ -80,8 +110,11 @@ class _HistoryListBodyState extends State<HistoryListBody> {
             actions: [
               const SizedBox(width: 8),
               NLCircleBtn(
-                child: const Icon(Icons.calendar_month_outlined,
-                    color: NLColors.ink, size: 18),
+                child: const Icon(
+                  Icons.calendar_month_outlined,
+                  color: NLColors.ink,
+                  size: 18,
+                ),
               ),
             ],
           ),
@@ -95,8 +128,11 @@ class _HistoryListBodyState extends State<HistoryListBody> {
                   active: _view,
                   onChange: (v) {
                     if (v == 'Календарь') {
-                      Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => const HistoryCalendarScreen()));
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const HistoryCalendarScreen(),
+                        ),
+                      );
                     } else {
                       setState(() => _view = v);
                     }
@@ -107,27 +143,42 @@ class _HistoryListBodyState extends State<HistoryListBody> {
                 if (entries.isEmpty) ...[
                   const SizedBox(height: 40),
                   Center(
-                    child: Column(children: [
-                      Container(
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
                             color: NLColors.surface2,
-                            shape: BoxShape.circle),
-                        child: const Icon(Icons.book_outlined,
-                            size: 28, color: NLColors.muted),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text('Записей пока нет',
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.book_outlined,
+                            size: 28,
+                            color: NLColors.muted,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Записей пока нет',
                           style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w600,
-                              color: NLColors.ink)),
-                      const SizedBox(height: 6),
-                      const Text('Начните вести дневник\nнажав кнопку «+»',
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                            color: NLColors.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Начните вести дневник\nнажав кнопку «+»',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 14, color: NLColors.muted, height: 1.5)),
-                    ]),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: NLColors.muted,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
 
@@ -152,8 +203,7 @@ class _HistoryListBodyState extends State<HistoryListBody> {
                               context.read<DiaryProvider>().delete(e.value.id),
                           onTap: () => Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) =>
-                                  DiaryEntryScreen(entry: e.value),
+                              builder: (_) => DiaryEntryScreen(entry: e.value),
                             ),
                           ),
                         );
@@ -189,11 +239,18 @@ class _EntryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settings = context.watch<SettingsProvider>().settings;
     final d = entry.dateTime;
     final f = entry.fatigue;
     final p = entry.pain;
     final mood = entry.mood;
     final s = entry.sleepHours;
+    final neuroMax = [
+      entry.numbness,
+      entry.coordination,
+      entry.vision,
+      entry.weakness,
+    ].reduce((a, b) => a > b ? a : b);
 
     return Dismissible(
       key: Key(entry.id),
@@ -202,8 +259,11 @@ class _EntryRow extends StatelessWidget {
         color: NLColors.bad,
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
-        child: const Icon(Icons.delete_outline_rounded,
-            color: Colors.white, size: 22),
+        child: const Icon(
+          Icons.delete_outline_rounded,
+          color: Colors.white,
+          size: 22,
+        ),
       ),
       onDismissed: (_) => onDelete(),
       child: GestureDetector(
@@ -214,70 +274,85 @@ class _EntryRow extends StatelessWidget {
             color: NLColors.surface,
             border: isLast
                 ? null
-                : const Border(
-                    bottom: BorderSide(color: NLColors.line2)),
+                : const Border(bottom: BorderSide(color: NLColors.line2)),
           ),
-          child: Row(children: [
-            // Date column
-            SizedBox(
-              width: 44,
-              child: Column(children: [
-                Text(
-                  '${d.day}',
-                  style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.5,
-                      color: NLColors.ink,
-                      height: 1),
+          child: Row(
+            children: [
+              // Date column
+              SizedBox(
+                width: 44,
+                child: Column(
+                  children: [
+                    Text(
+                      '${d.day}',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.5,
+                        color: NLColors.ink,
+                        height: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _monthsShort[d.month].toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: NLColors.muted,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  _monthsShort[d.month].toUpperCase(),
-                  style: const TextStyle(
-                      fontSize: 10,
-                      color: NLColors.muted,
-                      letterSpacing: 0.8),
-                ),
-              ]),
-            ),
-            const SizedBox(width: 12),
-            // Summary column
-            Expanded(
-              child: Column(
+              ),
+              const SizedBox(width: 12),
+              // Summary column
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(dayLabel,
-                        style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            color: NLColors.ink)),
+                    Text(
+                      dayLabel,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: NLColors.ink,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Text(
-                      'У $f  Б $p  Н $mood  ${s.toStringAsFixed(1)}ч',
+                      'У ${settings.formatSymptomValue(f)}  Б ${settings.formatSymptomValue(p)}  Н ${settings.formatSymptomValue(mood)}  РС ${settings.formatSymptomValue(neuroMax)}  Ст ${settings.formatSymptomValue(entry.stress)}  ${settings.formatSleepValue(s)}${settings.sleepUnit}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                          fontSize: 11, color: NLColors.muted),
+                        fontSize: 11,
+                        color: NLColors.muted,
+                      ),
                     ),
-                  ]),
-            ),
-            // Condition mini-bars: fatigue, pain, inverted mood
-            Row(
-              children: [f, p, 10 - mood].map((v) {
-                final color = v >= 7
-                    ? NLColors.bad
-                    : v >= 4
-                        ? NLColors.warn
-                        : NLColors.good;
-                return Container(
-                  width: 4,
-                  height: (8 + v * 2).toDouble(),
-                  margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                  decoration: BoxDecoration(
-                      color: color, borderRadius: BorderRadius.circular(2)),
-                );
-              }).toList(),
-            ),
-          ]),
+                  ],
+                ),
+              ),
+              // Condition mini-bars: fatigue, pain, inverted mood, MS burden, stress
+              Row(
+                children: [f, p, 10 - mood, neuroMax, entry.stress].map((v) {
+                  final color = v >= 7
+                      ? NLColors.bad
+                      : v >= 4
+                      ? NLColors.warn
+                      : NLColors.good;
+                  return Container(
+                    width: 4,
+                    height: (8 + v * 2).toDouble(),
+                    margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
         ),
       ),
     );
